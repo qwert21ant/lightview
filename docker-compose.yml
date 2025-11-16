@@ -1,0 +1,39 @@
+services:
+  camera-controller:
+    build:
+      context: .
+      dockerfile: camera-controller/Dockerfile
+    container_name: lightview-camera-controller
+    ports:
+      - "5000:5000"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - MediaMtx__ApiUrl=http://mediamtx:9997/v3/
+      - MediaMtx__WebRtcUrl=http://mediamtx:8889
+      - MediaMtx__Password=${MEDIAMTX_API_PASSWORD}
+    depends_on:
+      - mediamtx
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: lightview-mediamtx
+    environment:
+      - MTX_AUTHINTERNALUSERS_0_USER=api-user
+      - MTX_AUTHINTERNALUSERS_0_PASS=${MEDIAMTX_API_PASSWORD}
+      - MTX_AUTHINTERNALUSERS_0_PERMISSIONS_0_ACTION=api
+    ports:
+      - "8554:8554"  # TCP/RTSP
+      - "8000:8000"  # UDP/RTP
+      - "8001:8001"  # UDP/RTCP
+      - "8889:8889"  # WebRTC
+      - "9997:9997"  # API
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml:ro
+    restart: unless-stopped

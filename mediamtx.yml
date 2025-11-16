@@ -1,0 +1,16 @@
+logLevel: info
+logDestinations: [stdout]
+
+api: yes
+apiAddress: :9997
+
+rtsp: yes
+rtspAddress: :8554
+rtspEncryption: "no"
+
+webrtc: yes
+webrtcAddress: :8889
+webrtcAllowOrigin: "*"
+
+hls: no
+srt: no
