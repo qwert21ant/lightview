@@ -25,49 +25,6 @@ public class PagedResult<T>
     public bool HasPreviousPage => Page > 1;
 }
 
-// Camera API Models
-public class CreateCameraRequest
-{
-    public string Name { get; set; } = string.Empty;
-    public string IpAddress { get; set; } = string.Empty;
-    public int Port { get; set; } = 80;
-    public CameraCredentials Credentials { get; set; } = new();
-    public CameraProtocol Protocol { get; set; } = CameraProtocol.Onvif;
-    public bool AutoConnect { get; set; } = true;
-}
-
-public class UpdateCameraRequest
-{
-    public string? Name { get; set; }
-    public string? IpAddress { get; set; }
-    public int? Port { get; set; }
-    public CameraCredentials? Credentials { get; set; }
-    public CameraProtocol? Protocol { get; set; }
-}
-
-public class CameraListResponse
-{
-    public Guid Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string IpAddress { get; set; } = string.Empty;
-    public CameraStatus Status { get; set; }
-    public DateTime? LastConnectedAt { get; set; }
-    public string? Manufacturer { get; set; }
-    public string? Model { get; set; }
-    public int StreamCount { get; set; }
-}
-
-public class CameraDetailResponse : CameraListResponse
-{
-    public int Port { get; set; }
-    public CameraProtocol Protocol { get; set; }
-    public CameraCapabilities? Capabilities { get; set; }
-    public List<CameraProfile> Profiles { get; set; } = new();
-    public DateTime CreatedAt { get; set; }
-    public string? FirmwareVersion { get; set; }
-    public string? SerialNumber { get; set; }
-}
-
 // Stream API Models
 public class StartStreamRequest
 {

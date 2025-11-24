@@ -12,7 +12,7 @@ COPY camera-controller/RtspCamera/RtspCamera.csproj camera-controller/RtspCamera
 COPY camera-controller/WebService/WebService.csproj camera-controller/WebService/
 
 # Restore dependencies
-RUN dotnet restore "camera-controller/WebService/WebService.csproj"
+RUN dotnet restore camera-controller/WebService/WebService.csproj
 
 # Copy source code
 COPY shared/SharedContracts/ shared/SharedContracts/
@@ -22,11 +22,11 @@ COPY camera-controller/WebService/ camera-controller/WebService/
 
 # Build the application
 WORKDIR /src/camera-controller/WebService
-RUN dotnet build "WebService.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build WebService.csproj -c $BUILD_CONFIGURATION -o /app/build
 
 # Publish the application
 FROM build AS publish
-RUN dotnet publish "WebService.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish WebService.csproj -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
 WORKDIR /app

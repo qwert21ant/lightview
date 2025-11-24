@@ -1,5 +1,5 @@
 using CameraController.Contracts.Interfaces;
-using CameraController.Contracts.Models;
+using Lightview.Shared.Contracts.InternalApi;
 
 namespace WebService.Factories;
 

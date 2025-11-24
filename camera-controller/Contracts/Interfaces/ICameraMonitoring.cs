@@ -1,5 +1,6 @@
 using Lightview.Shared.Contracts;
 using CameraController.Contracts.Models;
+using Lightview.Shared.Contracts.InternalApi;
 
 namespace CameraController.Contracts.Interfaces;
 

@@ -1,4 +1,4 @@
-namespace CameraController.Contracts.Models;
+namespace Lightview.Shared.Contracts;
 
 /// <summary>
 /// Represents camera health status

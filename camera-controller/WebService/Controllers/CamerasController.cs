@@ -2,6 +2,7 @@ using Lightview.Shared.Contracts;
 using CameraController.Contracts.Interfaces;
 using CameraController.Contracts.Models;
 using Microsoft.AspNetCore.Mvc;
+using Lightview.Shared.Contracts.InternalApi;
 
 namespace WebService.Controllers;
 
@@ -19,11 +20,11 @@ public class CamerasController : ControllerBase
     }
 
     [HttpGet]
-    public ActionResult<ApiResponse<List<CameraStatusDto>>> GetCameras()
+    public ActionResult<ApiResponse<List<CameraStatusResponse>>> GetCameras()
     {
         var managedCameras = _cameraService.GetAllCameras();
         
-        var response = managedCameras.Values.Select(monitoring => new CameraStatusDto
+        var response = managedCameras.Values.Select(monitoring => new CameraStatusResponse
         {
             Id = monitoring.Camera.Id,
             Name = monitoring.Camera.Configuration.Name,
@@ -37,7 +38,7 @@ public class CamerasController : ControllerBase
             ProfileCount = monitoring.Camera.Profiles.Count
         }).ToList();
 
-        return Ok(new ApiResponse<List<CameraStatusDto>>
+        return Ok(new ApiResponse<List<CameraStatusResponse>>
         {
             Success = true,
             Data = response
@@ -45,7 +46,7 @@ public class CamerasController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    public ActionResult<ApiResponse<CameraStatusDto>> GetCamera(Guid id)
+    public ActionResult<ApiResponse<CameraStatusResponse>> GetCamera(Guid id)
     {
         var monitoring = _cameraService.GetCamera(id);
         if (monitoring == null)
@@ -58,7 +59,7 @@ public class CamerasController : ControllerBase
             });
         }
 
-        var response = new CameraStatusDto
+        var response = new CameraStatusResponse
         {
             Id = monitoring.Camera.Id,
             Name = monitoring.Camera.Configuration.Name,
@@ -72,7 +73,7 @@ public class CamerasController : ControllerBase
             ProfileCount = monitoring.Camera.Profiles.Count
         };
 
-        return Ok(new ApiResponse<CameraStatusDto>
+        return Ok(new ApiResponse<CameraStatusResponse>
         {
             Success = true,
             Data = response
@@ -80,7 +81,7 @@ public class CamerasController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<CameraStatusDto>>> CreateCamera([FromBody] CreateCameraDto request)
+    public async Task<ActionResult<ApiResponse<CameraStatusResponse>>> CreateCamera([FromBody] AddCameraRequest request)
     {
         try
         {
@@ -96,9 +97,27 @@ public class CamerasController : ControllerBase
                 CreatedAt = DateTime.UtcNow
             };
 
-            var monitoring = await _cameraService.AddCameraAsync(camera, request.MonitoringConfig);
+            CameraMonitoringConfig? monitoringConfig = null;
+            if (request.MonitoringConfig != null)
+            {
+                monitoringConfig = new CameraMonitoringConfig
+                {
+                    Enabled = request.MonitoringConfig.Enabled,
+                    HealthCheckInterval = request.MonitoringConfig.HealthCheckInterval,
+                    HealthCheckTimeout = request.MonitoringConfig.HealthCheckTimeout,
+                    FailureThreshold = request.MonitoringConfig.FailureThreshold,
+                    SuccessThreshold = request.MonitoringConfig.SuccessThreshold,
+                    AutoReconnect = request.MonitoringConfig.AutoReconnect,
+                    MaxReconnectAttempts = request.MonitoringConfig.MaxReconnectAttempts,
+                    ReconnectDelay = request.MonitoringConfig.ReconnectDelay,
+                    PublishHealthEvents = request.MonitoringConfig.PublishHealthEvents,
+                    PublishStatistics = request.MonitoringConfig.PublishStatistics
+                };
+            }
+            
+            var monitoring = await _cameraService.AddCameraAsync(camera, monitoringConfig);
 
-            var response = new CameraStatusDto
+            var response = new CameraStatusResponse
             {
                 Id = monitoring.Camera.Id,
                 Name = monitoring.Camera.Configuration.Name,
@@ -112,7 +131,7 @@ public class CamerasController : ControllerBase
 
             return CreatedAtAction(nameof(GetCamera), 
                 new { id = camera.Id }, 
-                new ApiResponse<CameraStatusDto>
+                new ApiResponse<CameraStatusResponse>
                 {
                     Success = true,
                     Data = response

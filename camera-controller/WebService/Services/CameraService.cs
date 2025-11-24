@@ -2,8 +2,8 @@ using System.Collections.Concurrent;
 using Lightview.Shared.Contracts;
 using CameraController.Contracts.Interfaces;
 using CameraController.Contracts.Models;
-using WebService.Services;
 using WebService.Factories;
+using Lightview.Shared.Contracts.InternalApi;
 
 namespace WebService.Services;
 

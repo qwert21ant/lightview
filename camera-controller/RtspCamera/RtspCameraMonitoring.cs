@@ -1,5 +1,7 @@
 using CameraController.Contracts.Interfaces;
 using CameraController.Contracts.Models;
+using Lightview.Shared.Contracts;
+using Lightview.Shared.Contracts.InternalApi;
 using Microsoft.Extensions.Logging;
 
 namespace RtspCamera;

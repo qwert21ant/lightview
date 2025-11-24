@@ -1,17 +1,35 @@
 services:
+  core:
+    build:
+      context: .
+      dockerfile: core/Dockerfile
+    container_name: lightview-core
+    ports:
+      - "5000:5000"
+      - "5001:5001"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=lightview;Username=postgres;Password=postgres
+      - CameraController__BaseUrl=http://camera-controller:5000/
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
   camera-controller:
     build:
       context: .
       dockerfile: camera-controller/Dockerfile
     container_name: lightview-camera-controller
     ports:
-      - "5000:5000"
+      - "5002:5000"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - MediaMtx__ApiUrl=http://mediamtx:9997/v3/
       - MediaMtx__WebRtcUrl=http://mediamtx:8889
       - MediaMtx__Password=${MEDIAMTX_API_PASSWORD}
+      - CoreService__BaseUrl=http://core:5001/
     depends_on:
+      - core
       - mediamtx
     restart: unless-stopped
     healthcheck:
@@ -37,3 +55,35 @@ services:
     volumes:
       - ./mediamtx.yml:/mediamtx.yml:ro
     restart: unless-stopped
+  
+  postgres:
+    image: postgres:18
+    container_name: lightview-postgres
+    environment:
+      - POSTGRES_DB=lightview
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    expose:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: lightview-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@sampleblog.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_LISTEN_PORT: 80
+    ports:
+      - "8081:80"
+    depends_on:
+      - postgres
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  pgadmin_data:

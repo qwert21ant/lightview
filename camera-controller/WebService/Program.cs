@@ -1,5 +1,6 @@
 using WebService.Services;
 using WebService.Factories;
+using WebService.Configuration;
 using CameraController.Contracts.Interfaces;
 using CameraController.Contracts.Models;
 
@@ -25,6 +26,14 @@ var mediaMtxConfig = builder.Configuration.GetSection("MediaMtx").Get<MediaMtxCo
     ?? throw new InvalidOperationException("MediaMtx configuration is required");
 builder.Services.AddSingleton(mediaMtxConfig);
 
+// Configure Core Service connection
+var coreServiceConfig = builder.Configuration.GetSection("CoreService").Get<CoreServiceConfiguration>()
+    ?? throw new InvalidOperationException("CoreService configuration is required");
+builder.Services.AddSingleton(coreServiceConfig);
+
+// Register HTTP client factory
+builder.Services.AddHttpClient();
+
 // Register HTTP client for MediaMTX
 builder.Services.AddHttpClient<IMediaMtxService, MediaMtxService>();
 
@@ -36,6 +45,9 @@ builder.Services.AddSingleton<ICameraMonitoringFactory, CameraMonitoringFactory>
 builder.Services.AddSingleton<ICameraService, CameraService>();
 builder.Services.AddSingleton<IEventPublisherService, EventPublisherService>();
 builder.Services.AddSingleton<IMediaMtxService, MediaMtxService>();
+
+// Register background services
+builder.Services.AddHostedService<CoreSyncService>();
 
 var app = builder.Build();
 
