@@ -11,6 +11,9 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=lightview;Username=postgres;Password=postgres
       - CameraController__BaseUrl=http://camera-controller:5000/
+      - Admin__Password=${ADMIN_PASSWORD:-admin123}
+      - Jwt__SecretKey=${JWT_SECRET_KEY:-your-very-secure-secret-key-that-is-at-least-32-characters-long}
+      - CameraController__ApiKey=${CAMERA_CONTROLLER_API_KEY:-lightview-camera-controller-api-key-2024}
     depends_on:
       - postgres
     restart: unless-stopped
@@ -28,6 +31,7 @@ services:
       - MediaMtx__WebRtcUrl=http://mediamtx:8889
       - MediaMtx__Password=${MEDIAMTX_API_PASSWORD}
       - CoreService__BaseUrl=http://core:5001/
+      - CoreService__ApiKey=${CAMERA_CONTROLLER_API_KEY:-lightview-camera-controller-api-key-2024}
     depends_on:
       - core
       - mediamtx
@@ -45,7 +49,7 @@ services:
       dockerfile: Dockerfile
     container_name: lightview-frontend
     ports:
-      - "3000:80"
+      - "80:80"
     depends_on:
       - core
     restart: unless-stopped

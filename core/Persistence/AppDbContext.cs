@@ -8,6 +8,7 @@ public class AppDbContext : DbContext
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
     public DbSet<Camera> Cameras => Set<Camera>();
+    public DbSet<User> Users => Set<User>();
     // Add other DbSets as needed
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -38,6 +39,16 @@ public class AppDbContext : DbContext
             entity.Property(e => e.DeviceInfoJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("device_info");
+        });
+        
+        // Configure User entity
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Username).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.PasswordHash).IsRequired().HasMaxLength(255);
+            
+            entity.HasIndex(e => e.Username).IsUnique();
         });
     }
 }

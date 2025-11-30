@@ -35,6 +35,7 @@ public class CoreSyncService : BackgroundService
 
         _httpClient.BaseAddress = new Uri(_config.BaseUrl);
         _httpClient.Timeout = TimeSpan.FromSeconds(_config.TimeoutSeconds);
+        _httpClient.DefaultRequestHeaders.Add("X-API-Key", _config.ApiKey);
         
         _jsonOptions = new JsonSerializerOptions
         {

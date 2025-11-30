@@ -2,11 +2,15 @@ using CameraManager.Interfaces;
 using Lightview.Shared.Contracts;
 using Lightview.Shared.Contracts.InternalApi;
 using Microsoft.AspNetCore.Mvc;
+using WebService.Authentication;
 
 namespace WebService.Controllers;
 
+[Host("*:5001")]  // Bind this controller to the camera-controller port
 [ApiController]
 [Route("api/[controller]")]
+[ApiKeyAuthorization]  // Require API key authentication for camera controller endpoints
+[EndpointGroupName("internal")]
 public class CameraControllerController : ControllerBase
 {
     private readonly ICameraService _cameraService;
