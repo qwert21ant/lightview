@@ -1,33 +1,18 @@
 import axios from 'axios'
-
-// API Base URL - adjust based on your backend configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+import { API_BASE_URL, API_TIMEOUT } from '@/config/api'
+import type { LoginRequest, LoginResponse, UserInfo } from '@/types/auth'
 
 // Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: API_TIMEOUT,
   headers: {
     'Content-Type': 'application/json'
   }
 })
 
-// Types
-export interface LoginRequest {
-  username: string
-  password: string
-}
-
-export interface LoginResponse {
-  token: string
-  expiresAt: string
-  user: UserInfo
-}
-
-export interface UserInfo {
-  id: string
-  username: string
-}
+// Re-export types for convenience
+export type { LoginRequest, LoginResponse, UserInfo }
 
 // Auth Service
 class AuthService {
