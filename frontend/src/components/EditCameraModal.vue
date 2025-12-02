@@ -114,13 +114,15 @@
               :class="[
                 camera.status === CameraStatus.Online 
                   ? 'bg-green-100 text-green-800' 
+                  : camera.status === CameraStatus.Disabled
+                  ? 'bg-gray-100 text-gray-800'
                   : 'bg-red-100 text-red-800'
               ]"
             >
               <div 
                 class="w-2 h-2 rounded-full mr-1.5"
                 :class="[
-                  camera.status === CameraStatus.Online ? 'bg-green-400' : 'bg-red-400'
+                  camera.status === CameraStatus.Online ? 'bg-green-400' : camera.status === CameraStatus.Disabled ? 'bg-gray-400' : 'bg-red-400'
                 ]"
               ></div>
               {{ getStatusText(camera.status) }}
@@ -385,6 +387,8 @@ const closeModal = () => {
 
 const getStatusText = (status: CameraStatus): string => {
   switch (status) {
+    case CameraStatus.Disabled:
+      return 'Disabled'
     case CameraStatus.Online:
       return 'Online'
     case CameraStatus.Offline:

@@ -45,6 +45,8 @@
         @view-stream="handleViewStream"
         @edit="handleEditCamera"
         @delete="handleDeleteCamera"
+        @connect="handleConnectCamera"
+        @disconnect="handleDisconnectCamera"
       />
     </div>
 
@@ -181,6 +183,36 @@ const handleViewStream = (camera: Camera) => {
   
   // For now, just log the action
   // In the future, this could open a stream viewer modal or navigate to a stream page
+}
+
+const handleConnectCamera = async (camera: Camera) => {
+  try {
+    console.log('Connecting to camera:', camera.name)
+    const success = await cameraManager.connectCamera(camera.id)
+    
+    if (success) {
+      console.log('Camera connected successfully:', camera.name)
+    } else {
+      console.warn('Failed to connect to camera:', camera.name)
+    }
+  } catch (error) {
+    console.error('Error connecting to camera:', error)
+  }
+}
+
+const handleDisconnectCamera = async (camera: Camera) => {
+  try {
+    console.log('Disconnecting from camera:', camera.name)
+    const success = await cameraManager.disconnectCamera(camera.id)
+    
+    if (success) {
+      console.log('Camera disconnected successfully:', camera.name)
+    } else {
+      console.warn('Failed to disconnect from camera:', camera.name)
+    }
+  } catch (error) {
+    console.error('Error disconnecting from camera:', error)
+  }
 }
 
 const handleTestConnection = async (camera: Camera) => {

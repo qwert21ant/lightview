@@ -102,23 +102,23 @@ public class CameraControllerClient : ICameraControllerClient
         }
     }
 
-    public async Task<CameraStatusResponse> AddCameraAsync(AddCameraRequest request, CancellationToken cancellationToken = default)
+    public async Task<CameraStatusResponse> AddCameraAsync(Guid id, AddCameraRequest request, CancellationToken cancellationToken = default)
     {
         try
         {
-            _logger.LogInformation("Adding camera {CameraName} to controller", request.Name);
+            _logger.LogInformation("Adding camera {CameraName} to controller with ID {CameraId}", request.Name, id);
             
             var json = JsonSerializer.Serialize(request, _jsonOptions);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var response = await _httpClient.PostAsync("/api/cameras", content, cancellationToken);
+            var response = await _httpClient.PostAsync($"/api/cameras/{id}", content, cancellationToken);
             response.EnsureSuccessStatusCode();
 
             var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<CameraStatusResponse>>(_jsonOptions, cancellationToken);
             
             if (apiResponse?.Success == true && apiResponse.Data != null)
             {
-                _logger.LogInformation("Successfully added camera {CameraId}", apiResponse.Data.Id);
+                _logger.LogInformation("Successfully added camera {CameraId}", id);
                 return apiResponse.Data;
             }
 

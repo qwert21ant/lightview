@@ -21,7 +21,7 @@ public interface ICameraControllerClient
     /// <summary>
     /// Add a new camera to the controller
     /// </summary>
-    Task<CameraStatusResponse> AddCameraAsync(AddCameraRequest request, CancellationToken cancellationToken = default);
+    Task<CameraStatusResponse> AddCameraAsync(Guid id, AddCameraRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Update camera settings

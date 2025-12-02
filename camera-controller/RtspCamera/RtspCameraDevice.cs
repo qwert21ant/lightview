@@ -21,7 +21,7 @@ public class RtspCameraDevice : ICamera
     private bool _disposed;
 
     public Guid Id => _configuration.Id;
-    public CameraStatus Status { get; private set; } = CameraStatus.Offline;
+    public CameraStatus Status { get; private set; } = CameraStatus.Disabled;
     public Camera Configuration => _configuration;
     public CameraCapabilities? Capabilities { get; private set; }
     public IReadOnlyList<CameraProfile> Profiles => _profiles.AsReadOnly();
@@ -96,21 +96,26 @@ public class RtspCameraDevice : ICamera
                 OnStatusChanged(CameraStatus.Connecting, Status);
                 return false;
             }
+            else
+            {
+                // Network is reachable - camera is offline but reachable
+                Status = CameraStatus.Offline;
+                OnStatusChanged(CameraStatus.Connecting, Status);
+            }
 
             // Test RTSP stream availability
             var rtspUrl = _configuration.Url.ToString();
             if (await TestRtspStreamAsync(rtspUrl, cancellationToken))
             {
                 Status = CameraStatus.Online;
-                OnStatusChanged(CameraStatus.Connecting, Status);
-                _logger?.LogInformation("Successfully connected to RTSP camera {CameraName}", _configuration.Name);
+                OnStatusChanged(CameraStatus.Offline, Status);
+                _logger?.LogInformation("Successfully connected to RTSP camera {CameraName} - stream available", _configuration.Name);
                 return true;
             }
             else
             {
-                Status = CameraStatus.Error;
-                OnStatusChanged(CameraStatus.Connecting, Status);
-                _logger?.LogWarning("RTSP stream test failed for camera {CameraName}", _configuration.Name);
+                // Network is reachable but stream is not available - stay offline
+                _logger?.LogWarning("RTSP stream test failed for camera {CameraName} - network reachable but stream unavailable", _configuration.Name);
                 return false;
             }
         }
@@ -129,7 +134,7 @@ public class RtspCameraDevice : ICamera
         {
             _logger?.LogInformation("Disconnecting from RTSP camera {CameraName}", _configuration.Name);
             var previousStatus = Status;
-            Status = CameraStatus.Offline;
+            Status = CameraStatus.Disabled;
             OnStatusChanged(previousStatus, Status);
             await Task.CompletedTask; // RTSP doesn't require explicit disconnection
         }

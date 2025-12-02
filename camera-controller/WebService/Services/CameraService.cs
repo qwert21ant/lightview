@@ -55,20 +55,22 @@ public class CameraService : ICameraService, IDisposable
             // Add to managed cameras
             _managedCameras[cameraConfig.Id] = monitoring;
 
+            // Set initial status to Disabled - monitoring will start only when camera is connected
+            cameraConfig.Status = CameraStatus.Disabled;
+
             // Publish camera added event
             await _eventPublisher.PublishCameraEventAsync(new CameraStatusChangedEvent
             {
                 CameraId = cameraConfig.Id,
-                PreviousStatus = CameraStatus.Offline,
-                CurrentStatus = cameraConfig.Status,
-                Reason = "Camera added to management"
+                PreviousStatus = CameraStatus.Disabled,
+                CurrentStatus = CameraStatus.Disabled,
+                Reason = "Camera added to management - monitoring disabled until connection"
             });
 
             // Configure MediaMTX stream if camera has RTSP capabilities
             await ConfigureMediaMtxStreamAsync(camera, cameraConfig);
 
-            // Start monitoring
-            await monitoring.StartMonitoringAsync();
+            // Do not start monitoring automatically - it will start when camera connects
 
             _logger.LogInformation("Successfully added and started monitoring camera {CameraId}", cameraConfig.Id);
             return monitoring;
@@ -215,6 +217,9 @@ public class CameraService : ICameraService, IDisposable
                         summary.UnhealthyCameras++;
                         summary.ProblematicCameras.Add(result.CameraId);
                     }
+                    break;
+                case CameraStatus.Disabled:
+                    // Disabled cameras are not counted as offline - they're intentionally not monitored
                     break;
                 case CameraStatus.Offline:
                     summary.OfflineCameras++;
@@ -394,6 +399,101 @@ public class CameraService : ICameraService, IDisposable
         {
             _logger.LogError(ex, "Failed to remove MediaMTX stream configuration for camera {CameraId}", cameraId);
             // Don't throw - this is cleanup, shouldn't prevent camera removal
+        }
+    }
+
+    public async Task<bool> ConnectCameraAsync(Guid cameraId)
+    {
+        _logger.LogInformation("Attempting to connect camera {CameraId}", cameraId);
+        
+        var monitoring = GetCamera(cameraId);
+        if (monitoring == null)
+        {
+            _logger.LogWarning("Cannot connect camera {CameraId}: Camera not found", cameraId);
+            return false;
+        }
+
+        if (monitoring.Camera.Status == CameraStatus.Online)
+        {
+            _logger.LogInformation("Camera {CameraId} is already connected", cameraId);
+            return true;
+        }
+
+        try
+        {
+            var connected = await monitoring.Camera.ConnectAsync();
+            if (connected)
+            {
+                _logger.LogInformation("Successfully connected to camera {CameraId}", cameraId);
+                
+                // Start monitoring now that camera is connected
+                await monitoring.StartMonitoringAsync();
+                _logger.LogInformation("Started monitoring for camera {CameraId}", cameraId);
+                
+                // Publish connection event
+                await _eventPublisher.PublishCameraEventAsync(new CameraStatusChangedEvent
+                {
+                    CameraId = cameraId,
+                    PreviousStatus = monitoring.Camera.Status == CameraStatus.Disabled ? CameraStatus.Disabled : CameraStatus.Offline,
+                    CurrentStatus = CameraStatus.Online,
+                    Reason = "Manual connection request"
+                });
+            }
+            else
+            {
+                _logger.LogWarning("Failed to connect to camera {CameraId}: Connection attempt returned false", cameraId);
+            }
+            
+            return connected;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error connecting to camera {CameraId}", cameraId);
+            return false;
+        }
+    }
+
+    public async Task<bool> DisconnectCameraAsync(Guid cameraId)
+    {
+        _logger.LogInformation("Attempting to disconnect camera {CameraId}", cameraId);
+        
+        var monitoring = GetCamera(cameraId);
+        if (monitoring == null)
+        {
+            _logger.LogWarning("Cannot disconnect camera {CameraId}: Camera not found", cameraId);
+            return false;
+        }
+
+        if (monitoring.Camera.Status == CameraStatus.Offline)
+        {
+            _logger.LogInformation("Camera {CameraId} is already disconnected", cameraId);
+            return true;
+        }
+
+        try
+        {
+            // Stop monitoring first
+            await monitoring.StopMonitoringAsync();
+            _logger.LogInformation("Stopped monitoring for camera {CameraId}", cameraId);
+            
+            await monitoring.Camera.DisconnectAsync();
+            _logger.LogInformation("Successfully disconnected from camera {CameraId}", cameraId);
+            
+            // Publish disconnection event - camera goes to Disabled state
+            await _eventPublisher.PublishCameraEventAsync(new CameraStatusChangedEvent
+            {
+                CameraId = cameraId,
+                PreviousStatus = CameraStatus.Online,
+                CurrentStatus = CameraStatus.Disabled,
+                Reason = "Manual disconnection request - monitoring disabled"
+            });
+            
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error disconnecting from camera {CameraId}", cameraId);
+            return false;
         }
     }
 }

@@ -22,6 +22,7 @@ public class CamerasController : ControllerBase
     [HttpGet]
     public ActionResult<ApiResponse<List<CameraStatusResponse>>> GetCameras()
     {
+        _logger.LogDebug("Getting all cameras");
         var managedCameras = _cameraService.GetAllCameras();
         
         var response = managedCameras.Values.Select(monitoring => new CameraStatusResponse
@@ -48,6 +49,7 @@ public class CamerasController : ControllerBase
     [HttpGet("{id}")]
     public ActionResult<ApiResponse<CameraStatusResponse>> GetCamera(Guid id)
     {
+        _logger.LogDebug("Getting camera {CameraId}", id);
         var monitoring = _cameraService.GetCamera(id);
         if (monitoring == null)
         {
@@ -80,14 +82,15 @@ public class CamerasController : ControllerBase
         });
     }
 
-    [HttpPost]
-    public async Task<ActionResult<ApiResponse<CameraStatusResponse>>> CreateCamera([FromBody] AddCameraRequest request)
+    [HttpPost("{id}")]
+    public async Task<ActionResult<ApiResponse<CameraStatusResponse>>> CreateCamera(Guid id, [FromBody] AddCameraRequest request)
     {
+        _logger.LogInformation("Creating new camera {CameraName} with URL {Url}", request.Name, request.Url);
         try
         {
             var camera = new Camera
             {
-                Id = Guid.NewGuid(),
+                Id = id,
                 Name = request.Name,
                 Url = request.Url,
                 Username = request.Username,
@@ -130,7 +133,7 @@ public class CamerasController : ControllerBase
             };
 
             return CreatedAtAction(nameof(GetCamera), 
-                new { id = camera.Id }, 
+                new { id = id }, 
                 new ApiResponse<CameraStatusResponse>
                 {
                     Success = true,
@@ -152,6 +155,7 @@ public class CamerasController : ControllerBase
     [HttpPost("{id}/ptz/move")]
     public async Task<ActionResult<ApiResponse<PtzMoveResponse>>> MovePtz(Guid id, [FromBody] PtzMoveRequest request)
     {
+        _logger.LogInformation("PTZ move request for camera {CameraId}, MoveType: {MoveType}", id, request.MoveType);
         var monitoring = _cameraService.GetCamera(id);
         if (monitoring == null)
         {
@@ -230,9 +234,78 @@ public class CamerasController : ControllerBase
         }
     }
 
+    [HttpPost("{id}/connect")]
+    public async Task<ActionResult<ApiResponse>> ConnectCamera(Guid id)
+    {
+        _logger.LogInformation("Connect request for camera {CameraId}", id);
+        try
+        {
+            var result = await _cameraService.ConnectCameraAsync(id);
+            if (!result)
+            {
+                return BadRequest(new ApiResponse
+                {
+                    Success = false,
+                    ErrorMessage = "Failed to connect to camera",
+                    ErrorCode = "CAMERA_CONNECTION_FAILED"
+                });
+            }
+
+            return Ok(new ApiResponse
+            {
+                Success = true
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to connect camera {CameraId}", id);
+            return BadRequest(new ApiResponse
+            {
+                Success = false,
+                ErrorMessage = ex.Message,
+                ErrorCode = "CAMERA_CONNECTION_FAILED"
+            });
+        }
+    }
+
+    [HttpPost("{id}/disconnect")]
+    public async Task<ActionResult<ApiResponse>> DisconnectCamera(Guid id)
+    {
+        _logger.LogInformation("Disconnect request for camera {CameraId}", id);
+        try
+        {
+            var result = await _cameraService.DisconnectCameraAsync(id);
+            if (!result)
+            {
+                return BadRequest(new ApiResponse
+                {
+                    Success = false,
+                    ErrorMessage = "Failed to disconnect from camera",
+                    ErrorCode = "CAMERA_DISCONNECTION_FAILED"
+                });
+            }
+
+            return Ok(new ApiResponse
+            {
+                Success = true
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to disconnect camera {CameraId}", id);
+            return BadRequest(new ApiResponse
+            {
+                Success = false,
+                ErrorMessage = ex.Message,
+                ErrorCode = "CAMERA_DISCONNECTION_FAILED"
+            });
+        }
+    }
+
     [HttpDelete("{id}")]
     public async Task<ActionResult<ApiResponse>> DeleteCamera(Guid id)
     {
+        _logger.LogInformation("Delete request for camera {CameraId}", id);
         try
         {
             var result = await _cameraService.RemoveCameraAsync(id);
@@ -266,6 +339,7 @@ public class CamerasController : ControllerBase
     [HttpGet("{id}/health")]
     public async Task<ActionResult<ApiResponse<CameraHealthStatus>>> GetCameraHealth(Guid id)
     {
+        _logger.LogDebug("Getting health status for camera {CameraId}", id);
         try
         {
             var health = await _cameraService.GetCameraHealthAsync(id);
@@ -300,6 +374,7 @@ public class CamerasController : ControllerBase
     [HttpGet("{id}/ptz/presets")]
     public async Task<ActionResult<ApiResponse<List<PtzPreset>>>> GetPtzPresets(Guid id)
     {
+        _logger.LogDebug("Getting PTZ presets for camera {CameraId}", id);
         var monitoring = _cameraService.GetCamera(id);
         if (monitoring == null)
         {
@@ -344,6 +419,7 @@ public class CamerasController : ControllerBase
     [HttpPost("{id}/ptz/presets/{presetId}/goto")]
     public async Task<ActionResult<ApiResponse>> GotoPtzPreset(Guid id, int presetId)
     {
+        _logger.LogInformation("Going to PTZ preset {PresetId} for camera {CameraId}", presetId, id);
         var monitoring = _cameraService.GetCamera(id);
         if (monitoring == null)
         {
@@ -388,6 +464,7 @@ public class CamerasController : ControllerBase
     [HttpPost("{id}/ptz/presets")]
     public async Task<ActionResult<ApiResponse>> SetPtzPreset(Guid id, [FromBody] PtzPresetRequest request)
     {
+        _logger.LogInformation("Setting PTZ preset '{PresetName}' for camera {CameraId}", request.Name, id);
         var monitoring = _cameraService.GetCamera(id);
         if (monitoring == null)
         {
@@ -432,6 +509,7 @@ public class CamerasController : ControllerBase
     [HttpDelete("{id}/ptz/presets/{presetId}")]
     public async Task<ActionResult<ApiResponse>> DeletePtzPreset(Guid id, int presetId)
     {
+        _logger.LogInformation("Deleting PTZ preset {PresetId} for camera {CameraId}", presetId, id);
         var monitoring = _cameraService.GetCamera(id);
         if (monitoring == null)
         {
@@ -476,6 +554,7 @@ public class CamerasController : ControllerBase
     [HttpGet("service/health")]
     public async Task<ActionResult<ApiResponse<ServiceHealthSummary>>> GetServiceHealth()
     {
+        _logger.LogDebug("Getting service health status");
         try
         {
             var health = await _cameraService.GetServiceHealthAsync();

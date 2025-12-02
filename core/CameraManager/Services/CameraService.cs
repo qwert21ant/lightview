@@ -59,7 +59,7 @@ public class CameraService : ICameraService
         // Add camera to camera-controller
         try
         {
-            await _cameraControllerClient.AddCameraAsync(request);
+            await _cameraControllerClient.AddCameraAsync(sharedCamera.Id, request);
             _logger.LogInformation("Camera {CameraId} added to camera-controller", sharedCamera.Id);
         }
         catch (Exception ex)

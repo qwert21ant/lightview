@@ -40,13 +40,15 @@
             :class="[
               isOnline
                 ? 'bg-green-500/80 text-white' 
+                : camera.status === CameraStatus.Disabled
+                ? 'bg-gray-500/80 text-white'
                 : 'bg-red-500/80 text-white'
             ]"
           >
             <div 
               class="w-2 h-2 rounded-full mr-1.5"
               :class="[
-                isOnline ? 'bg-green-200' : 'bg-red-200'
+                isOnline ? 'bg-green-200' : camera.status === CameraStatus.Disabled ? 'bg-gray-200' : 'bg-red-200'
               ]"
             ></div>
             {{ statusText }}
@@ -99,33 +101,58 @@
       </div>
       
       <!-- Actions -->
-      <div class="mt-4 flex space-x-2">
-        <button 
-          @click="$emit('view-stream', camera)"
-          class="flex-1 px-3 py-2 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          :disabled="!isOnline"
-        >
-          View Stream
-        </button>
-        <button 
-          @click="$emit('edit', camera)"
-          class="px-3 py-2 text-sm border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
-        >
-          Edit
-        </button>
-        <button 
-          @click="$emit('delete', camera)"
-          class="px-3 py-2 text-sm border border-red-300 text-red-700 rounded-md hover:bg-red-50 transition-colors"
-        >
-          Delete
-        </button>
+      <div class="mt-4 space-y-2">
+        <!-- Primary actions row -->
+        <div class="flex space-x-2">
+          <button 
+            @click="$emit('view-stream', camera)"
+            class="flex-1 px-3 py-2 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="!isOnline"
+          >
+            View Stream
+          </button>
+          <button 
+            @click="handleConnectionToggle"
+            class="px-3 py-2 text-sm rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            :class="[
+              isOnline 
+                ? 'bg-orange-600 text-white hover:bg-orange-700' 
+                : 'bg-green-600 text-white hover:bg-green-700'
+            ]"
+            :disabled="isConnecting || camera.status === CameraStatus.Connecting"
+          >
+            <span v-if="isConnecting" class="flex items-center">
+              <div class="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></div>
+              {{ isOnline ? 'Disconnecting...' : 'Connecting...' }}
+            </span>
+            <span v-else>
+              {{ isOnline ? 'Disconnect' : 'Connect' }}
+            </span>
+          </button>
+        </div>
+        
+        <!-- Secondary actions row -->
+        <div class="flex space-x-2">
+          <button 
+            @click="$emit('edit', camera)"
+            class="flex-1 px-3 py-2 text-sm border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+          >
+            Edit
+          </button>
+          <button 
+            @click="$emit('delete', camera)"
+            class="flex-1 px-3 py-2 text-sm border border-red-300 text-red-700 rounded-md hover:bg-red-50 transition-colors"
+          >
+            Delete
+          </button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { VideoCameraIcon, PlayIcon, Cog6ToothIcon } from '@heroicons/vue/24/outline'
 import type { Camera } from '@/types/camera'
 import { CameraStatus, CameraProtocol } from '@/types/camera'
@@ -136,11 +163,16 @@ interface Props {
 
 const props = defineProps<Props>()
 
-defineEmits<{
+const emit = defineEmits<{
   'view-stream': [camera: Camera]
   'edit': [camera: Camera]
   'delete': [camera: Camera]
+  'connect': [camera: Camera]
+  'disconnect': [camera: Camera]
 }>()
+
+// Local state for connection operations
+const isConnecting = ref(false)
 
 // Computed properties for handling the new backend models
 const isOnline = computed(() => 
@@ -149,6 +181,8 @@ const isOnline = computed(() =>
 
 const statusText = computed(() => {
   switch (props.camera.status) {
+    case CameraStatus.Disabled:
+      return 'Disabled'
     case CameraStatus.Online:
       return 'Online'
     case CameraStatus.Offline:
@@ -199,6 +233,23 @@ const formatUrl = (url: string): string => {
     return urlObj.hostname + (urlObj.port ? `:${urlObj.port}` : '')
   } catch {
     return url
+  }
+}
+
+const handleConnectionToggle = async () => {
+  isConnecting.value = true
+  
+  try {
+    if (isOnline.value) {
+      emit('disconnect', props.camera)
+    } else {
+      emit('connect', props.camera)
+    }
+  } finally {
+    // Reset connecting state after a delay to allow for visual feedback
+    setTimeout(() => {
+      isConnecting.value = false
+    }, 1000)
   }
 }
 

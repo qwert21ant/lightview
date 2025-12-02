@@ -43,4 +43,14 @@ public interface ICameraService
     /// Get service health summary
     /// </summary>
     Task<ServiceHealthSummary> GetServiceHealthAsync();
+    
+    /// <summary>
+    /// Connect to a specific camera
+    /// </summary>
+    Task<bool> ConnectCameraAsync(Guid cameraId);
+    
+    /// <summary>
+    /// Disconnect from a specific camera
+    /// </summary>
+    Task<bool> DisconnectCameraAsync(Guid cameraId);
 }

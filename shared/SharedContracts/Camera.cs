@@ -9,7 +9,7 @@ public class Camera
     public string Username { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
     public CameraProtocol Protocol { get; set; } = CameraProtocol.Onvif;
-    public CameraStatus Status { get; set; } = CameraStatus.Offline;
+    public CameraStatus Status { get; set; } = CameraStatus.Disabled;
     public CameraCapabilities? Capabilities { get; set; }
     public List<CameraProfile> Profiles { get; set; } = new();
     public DateTime CreatedAt { get; set; }
@@ -33,6 +33,7 @@ public class CameraCredentials
 
 public enum CameraStatus
 {
+    Disabled,
     Offline,
     Online,
     Connecting,
