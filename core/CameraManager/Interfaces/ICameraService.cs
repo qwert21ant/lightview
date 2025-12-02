@@ -9,6 +9,7 @@ public interface ICameraService
     Task<Camera?> GetCameraByIdAsync(Guid id);
     Task<Camera> AddCameraAsync(AddCameraRequest request);
     Task<Camera> UpdateCameraAsync(Guid id, Camera camera);
+    Task UpdateCameraPersistenceOnlyAsync(Guid id, Camera camera);
     Task<bool> DeleteCameraAsync(Guid id);
     Task<CameraStatusResponse?> GetCameraStatusAsync(Guid id);
     Task<bool> ConnectCameraAsync(Guid id);

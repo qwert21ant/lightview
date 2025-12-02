@@ -6,7 +6,7 @@ namespace CameraController.Contracts.Interfaces;
 /// <summary>
 /// Represents a camera connection and provides methods for camera operations
 /// </summary>
-public interface ICamera : IDisposable
+public interface ICamera : IDisposable, ICameraHealthCheck
 {
     /// <summary>
     /// Unique identifier of the camera
@@ -44,7 +44,12 @@ public interface ICamera : IDisposable
     event EventHandler<CameraStatusChangedEventArgs> StatusChanged;
     
     /// <summary>
-    /// Connect to the camera
+    /// Updates the camera status (used by monitoring service)
+    /// </summary>
+    void UpdateStatus(CameraStatus status, string? reason = null);
+    
+    /// <summary>
+    /// Connect to the camera (performs all health checks during connection)
     /// </summary>
     Task<bool> ConnectAsync(CancellationToken cancellationToken = default);
     

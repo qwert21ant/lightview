@@ -113,16 +113,21 @@
               class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
               :class="[
                 camera.status === CameraStatus.Online 
-                  ? 'bg-green-100 text-green-800' 
-                  : camera.status === CameraStatus.Disabled
-                  ? 'bg-gray-100 text-gray-800'
+                  ? 'bg-green-100 text-green-800'
+                  : camera.status === CameraStatus.Degraded
+                  ? 'bg-yellow-100 text-yellow-800' 
+                  : camera.status === CameraStatus.Connecting
+                  ? 'bg-blue-100 text-blue-800'
                   : 'bg-red-100 text-red-800'
               ]"
             >
               <div 
                 class="w-2 h-2 rounded-full mr-1.5"
                 :class="[
-                  camera.status === CameraStatus.Online ? 'bg-green-400' : camera.status === CameraStatus.Disabled ? 'bg-gray-400' : 'bg-red-400'
+                  camera.status === CameraStatus.Online ? 'bg-green-400' 
+                  : camera.status === CameraStatus.Degraded ? 'bg-yellow-400'
+                  : camera.status === CameraStatus.Connecting ? 'bg-blue-400'
+                  : 'bg-red-400'
                 ]"
               ></div>
               {{ getStatusText(camera.status) }}
@@ -387,18 +392,16 @@ const closeModal = () => {
 
 const getStatusText = (status: CameraStatus): string => {
   switch (status) {
-    case CameraStatus.Disabled:
-      return 'Disabled'
-    case CameraStatus.Online:
-      return 'Online'
     case CameraStatus.Offline:
       return 'Offline'
     case CameraStatus.Connecting:
       return 'Connecting'
+    case CameraStatus.Online:
+      return 'Online'
+    case CameraStatus.Degraded:
+      return 'Degraded'
     case CameraStatus.Error:
       return 'Error'
-    case CameraStatus.Maintenance:
-      return 'Maintenance'
     default:
       return 'Unknown'
   }

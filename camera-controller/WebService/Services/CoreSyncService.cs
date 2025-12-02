@@ -197,6 +197,34 @@ public class CoreSyncService : BackgroundService
 
             await _cameraService.AddCameraAsync(camera, monitoringConfig);
             
+            // Auto-start monitoring and connection for cameras that were not offline
+            if (cameraInit.Status != CameraStatus.Offline)
+            {
+                _logger.LogInformation("Auto-connecting camera {CameraId} ({Name}) with status {Status}", 
+                    cameraInit.Id, cameraInit.Name, cameraInit.Status);
+
+                try
+                {
+                    var connected = await _cameraService.ConnectCameraAsync(cameraInit.Id);
+                    if (connected)
+                    {
+                        _logger.LogInformation("Successfully auto-connected camera {CameraId} during startup", cameraInit.Id);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Auto-connection failed for camera {CameraId} during startup", cameraInit.Id);
+                    }
+                }
+                catch (Exception connectEx)
+                {
+                    _logger.LogError(connectEx, "Exception during auto-connection of camera {CameraId}", cameraInit.Id);
+                }
+            }
+            else
+            {
+                _logger.LogDebug("Camera {CameraId} has Offline status, skipping auto-connection", cameraInit.Id);
+            }
+            
             _logger.LogInformation("Successfully initialized camera {CameraId} ({Name})", cameraInit.Id, cameraInit.Name);
         }
         catch (Exception ex)

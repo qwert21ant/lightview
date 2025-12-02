@@ -30,12 +30,11 @@ export interface CameraCredentials {
 }
 
 export enum CameraStatus {
-  Disabled = 0,
-  Offline = 1,
-  Online = 2,
-  Connecting = 3,
-  Error = 4,
-  Maintenance = 5
+  Offline = 0,      // Camera is not connected
+  Connecting = 1,   // Camera is in the process of connecting
+  Online = 2,       // Camera is connected and healthy
+  Degraded = 3,     // Camera is connected but experiencing health issues
+  Error = 4         // Camera has encountered an error
 }
 
 export enum CameraProtocol {

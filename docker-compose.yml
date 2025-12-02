@@ -14,8 +14,16 @@ services:
       - Admin__Password=${ADMIN_PASSWORD:-admin123}
       - Jwt__SecretKey=${JWT_SECRET_KEY:-your-very-secure-secret-key-that-is-at-least-32-characters-long}
       - CameraController__ApiKey=${CAMERA_CONTROLLER_API_KEY:-lightview-camera-controller-api-key-2024}
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__Username=lightview
+      - RabbitMQ__Password=${RABBITMQ_PASSWORD:-lightview123}
+      - RabbitMQ__VirtualHost=/
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     restart: unless-stopped
 
   camera-controller:
@@ -32,9 +40,18 @@ services:
       - MediaMtx__Password=${MEDIAMTX_API_PASSWORD}
       - CoreService__BaseUrl=http://core:5001/
       - CoreService__ApiKey=${CAMERA_CONTROLLER_API_KEY:-lightview-camera-controller-api-key-2024}
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__Username=lightview
+      - RabbitMQ__Password=${RABBITMQ_PASSWORD:-lightview123}
+      - RabbitMQ__VirtualHost=/
     depends_on:
-      - core
-      - mediamtx
+      core:
+        condition: service_started
+      mediamtx:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
@@ -77,6 +94,26 @@ services:
       - ./mediamtx.yml:/mediamtx.yml:ro
     restart: unless-stopped
   
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: lightview-rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=lightview
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-lightview123}
+      - RABBITMQ_DEFAULT_VHOST=/
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
   postgres:
     image: postgres:18
     container_name: lightview-postgres
@@ -89,6 +126,12 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   pgadmin:
     image: dpage/pgadmin4:latest
@@ -100,11 +143,13 @@ services:
     ports:
       - "8081:80"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     volumes:
       - pgadmin_data:/var/lib/pgadmin
     restart: unless-stopped
 
 volumes:
+  rabbitmq_data:
   postgres_data:
   pgadmin_data:

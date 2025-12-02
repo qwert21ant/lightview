@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using Lightview.Shared.Contracts;
+using Lightview.Shared.Contracts.Events;
+using Lightview.Shared.Contracts.Interfaces;
 using CameraController.Contracts.Interfaces;
 using CameraController.Contracts.Models;
 using WebService.Factories;
@@ -13,7 +15,7 @@ namespace WebService.Services;
 public class CameraService : ICameraService, IDisposable
 {
     private readonly ILogger<CameraService> _logger;
-    private readonly IEventPublisherService _eventPublisher;
+    private readonly ICameraEventPublisher _eventPublisher;
     private readonly IMediaMtxService _mediaMtxService;
     private readonly ConcurrentDictionary<Guid, ICameraMonitoring> _managedCameras;
     private readonly SemaphoreSlim _operationSemaphore;
@@ -55,16 +57,16 @@ public class CameraService : ICameraService, IDisposable
             // Add to managed cameras
             _managedCameras[cameraConfig.Id] = monitoring;
 
-            // Set initial status to Disabled - monitoring will start only when camera is connected
-            cameraConfig.Status = CameraStatus.Disabled;
+            // Set initial status to Offline - camera is not connected yet
+            camera.UpdateStatus(CameraStatus.Offline, "Camera added to management - not connected yet");
 
             // Publish camera added event
             await _eventPublisher.PublishCameraEventAsync(new CameraStatusChangedEvent
             {
                 CameraId = cameraConfig.Id,
-                PreviousStatus = CameraStatus.Disabled,
-                CurrentStatus = CameraStatus.Disabled,
-                Reason = "Camera added to management - monitoring disabled until connection"
+                PreviousStatus = CameraStatus.Offline,
+                CurrentStatus = CameraStatus.Offline,
+                Reason = "Camera added to management - ready for connection"
             });
 
             // Configure MediaMTX stream if camera has RTSP capabilities
@@ -100,15 +102,6 @@ public class CameraService : ICameraService, IDisposable
             // Stop monitoring and dispose
             await monitoring.StopMonitoringAsync();
             monitoring.Dispose();
-
-            // Publish camera removed event
-            await _eventPublisher.PublishCameraEventAsync(new CameraDisconnectedEvent
-            {
-                CameraId = cameraId,
-                Reason = "Camera removed from management",
-                IsExpected = true,
-                LastSeenAt = DateTime.UtcNow
-            });
 
             _logger.LogInformation("Successfully removed camera {CameraId}", cameraId);
             return true;
@@ -218,8 +211,9 @@ public class CameraService : ICameraService, IDisposable
                         summary.ProblematicCameras.Add(result.CameraId);
                     }
                     break;
-                case CameraStatus.Disabled:
-                    // Disabled cameras are not counted as offline - they're intentionally not monitored
+                case CameraStatus.Degraded:
+                    summary.UnhealthyCameras++;
+                    summary.ProblematicCameras.Add(result.CameraId);
                     break;
                 case CameraStatus.Offline:
                     summary.OfflineCameras++;
@@ -231,6 +225,7 @@ public class CameraService : ICameraService, IDisposable
                     summary.ErrorCameras++;
                     summary.ProblematicCameras.Add(result.CameraId);
                     break;
+                // Disabled cameras are not counted - they're intentionally not monitored
             }
         }
 
@@ -242,7 +237,7 @@ public class CameraService : ICameraService, IDisposable
 
     public CameraService(
         ILogger<CameraService> logger, 
-        IEventPublisherService eventPublisher,
+        ICameraEventPublisher eventPublisher,
         IMediaMtxService mediaMtxService,
         ICameraFactory cameraFactory,
         ICameraMonitoringFactory monitoringFactory)
@@ -283,6 +278,12 @@ public class CameraService : ICameraService, IDisposable
                 CurrentStatus = args.CurrentStatus,
                 Reason = args.Reason
             });
+
+            // Publish camera metadata when camera comes online
+            if (args.CurrentStatus == CameraStatus.Online && args.PreviousStatus != CameraStatus.Online)
+            {
+                await PublishCameraMetadataAsync(camera);
+            }
         };
 
         // Subscribe to PTZ events if PTZ is supported
@@ -329,6 +330,76 @@ public class CameraService : ICameraService, IDisposable
                 });
             }
         };
+    }
+
+    /// <summary>
+    /// Publishes camera metadata (profiles, capabilities, device info) after successful connection
+    /// </summary>
+    private async Task PublishCameraMetadataAsync(ICamera camera)
+    {
+        try
+        {
+            _logger.LogDebug("Publishing metadata for camera {CameraId}", camera.Id);
+
+            // Get device info (may be null for RTSP cameras)
+            CameraDeviceInfo? deviceInfo = null;
+            try
+            {
+                var onvifDeviceInfo = await camera.GetDeviceInfoAsync();
+                if (onvifDeviceInfo != null)
+                {
+                    deviceInfo = new CameraDeviceInfo
+                    {
+                        Manufacturer = onvifDeviceInfo.Manufacturer,
+                        Model = onvifDeviceInfo.Model,
+                        FirmwareVersion = onvifDeviceInfo.FirmwareVersion,
+                        SerialNumber = onvifDeviceInfo.SerialNumber
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Could not retrieve device info for camera {CameraId} - this is normal for RTSP cameras", camera.Id);
+            }
+
+            // Get profiles
+            List<CameraProfile> profiles;
+            try
+            {
+                profiles = await camera.GetProfilesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to get profiles for camera {CameraId}, using default profiles", camera.Id);
+                profiles = camera.Profiles.ToList();
+            }
+
+            // Determine what metadata we have to publish
+            var updateType = CameraMetadataUpdateType.Capabilities; // Always have capabilities
+            
+            if (profiles.Any())
+                updateType |= CameraMetadataUpdateType.Profiles;
+            
+            if (deviceInfo != null)
+                updateType |= CameraMetadataUpdateType.DeviceInfo;
+
+            // Publish the metadata event
+            await _eventPublisher.PublishCameraMetadataUpdatedAsync(new CameraMetadataUpdatedEvent
+            {
+                CameraId = camera.Id,
+                Profiles = profiles.Any() ? profiles : null,
+                Capabilities = camera.Capabilities,
+                DeviceInfo = deviceInfo,
+                UpdateType = updateType
+            });
+
+            _logger.LogInformation("Successfully published metadata for camera {CameraId} - UpdateType: {UpdateType}, Profiles: {ProfileCount}, HasCapabilities: {HasCapabilities}, HasDeviceInfo: {HasDeviceInfo}", 
+                camera.Id, updateType, profiles.Count, camera.Capabilities != null, deviceInfo != null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to publish metadata for camera {CameraId}", camera.Id);
+        }
     }
 
     public void Dispose()
@@ -413,14 +484,15 @@ public class CameraService : ICameraService, IDisposable
             return false;
         }
 
-        if (monitoring.Camera.Status == CameraStatus.Online)
+        if (monitoring.Camera.Status == CameraStatus.Online || monitoring.Camera.Status == CameraStatus.Degraded)
         {
-            _logger.LogInformation("Camera {CameraId} is already connected", cameraId);
+            _logger.LogInformation("Camera {CameraId} is already connected (status: {Status})", cameraId, monitoring.Camera.Status);
             return true;
         }
 
         try
         {
+            var previousStatus = monitoring.Camera.Status;
             var connected = await monitoring.Camera.ConnectAsync();
             if (connected)
             {
@@ -430,12 +502,13 @@ public class CameraService : ICameraService, IDisposable
                 await monitoring.StartMonitoringAsync();
                 _logger.LogInformation("Started monitoring for camera {CameraId}", cameraId);
                 
-                // Publish connection event
+                // Note: ConnectAsync in RtspCameraDevice already updates status
+                // Just publish the event here
                 await _eventPublisher.PublishCameraEventAsync(new CameraStatusChangedEvent
                 {
                     CameraId = cameraId,
-                    PreviousStatus = monitoring.Camera.Status == CameraStatus.Disabled ? CameraStatus.Disabled : CameraStatus.Offline,
-                    CurrentStatus = CameraStatus.Online,
+                    PreviousStatus = previousStatus,
+                    CurrentStatus = monitoring.Camera.Status,
                     Reason = "Manual connection request"
                 });
             }
@@ -472,6 +545,8 @@ public class CameraService : ICameraService, IDisposable
 
         try
         {
+            var previousStatus = monitoring.Camera.Status;
+            
             // Stop monitoring first
             await monitoring.StopMonitoringAsync();
             _logger.LogInformation("Stopped monitoring for camera {CameraId}", cameraId);
@@ -479,13 +554,13 @@ public class CameraService : ICameraService, IDisposable
             await monitoring.Camera.DisconnectAsync();
             _logger.LogInformation("Successfully disconnected from camera {CameraId}", cameraId);
             
-            // Publish disconnection event - camera goes to Disabled state
+            // Publish disconnection event - camera goes to Offline state
             await _eventPublisher.PublishCameraEventAsync(new CameraStatusChangedEvent
             {
                 CameraId = cameraId,
-                PreviousStatus = CameraStatus.Online,
-                CurrentStatus = CameraStatus.Disabled,
-                Reason = "Manual disconnection request - monitoring disabled"
+                PreviousStatus = previousStatus,
+                CurrentStatus = CameraStatus.Offline,
+                Reason = "Manual disconnection request"
             });
             
             return true;

@@ -27,9 +27,9 @@ public class DatabaseInitializer
     {
         try
         {
-            // Apply any pending migrations
-            await _context.Database.MigrateAsync();
-            _logger.LogInformation("Database migrations applied successfully");
+            // Ensure database is created
+            await _context.Database.EnsureCreatedAsync();
+            _logger.LogInformation("Database created/verified successfully");
 
             // Create admin user if it doesn't exist
             await CreateAdminUserAsync();

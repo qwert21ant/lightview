@@ -9,7 +9,7 @@ public class Camera
     public string Username { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
     public CameraProtocol Protocol { get; set; } = CameraProtocol.Onvif;
-    public CameraStatus Status { get; set; } = CameraStatus.Disabled;
+    public CameraStatus Status { get; set; } = CameraStatus.Offline;
     public CameraCapabilities? Capabilities { get; set; }
     public List<CameraProfile> Profiles { get; set; } = new();
     public DateTime CreatedAt { get; set; }
@@ -33,12 +33,11 @@ public class CameraCredentials
 
 public enum CameraStatus
 {
-    Disabled,
-    Offline,
-    Online,
-    Connecting,
-    Error,
-    Maintenance
+    Offline,     // Camera added but no connection attempts made
+    Connecting,  // Camera-controller attempting to connect
+    Online,      // Camera connected successfully, no health check failures
+    Degraded,    // Camera connected but health checks failing
+    Error        // Connection failed or unrecoverable error
 }
 
 public enum CameraProtocol
@@ -46,4 +45,22 @@ public enum CameraProtocol
     Onvif,
     Rtsp,
     Http
+}
+
+// Health Check Models
+public class HealthCheckResult
+{
+    public bool IsSuccessful { get; set; }
+    public string CheckName { get; set; } = string.Empty;
+    public string? ErrorMessage { get; set; }
+    public TimeSpan ResponseTime { get; set; }
+    public DateTime CheckedAt { get; set; } = DateTime.UtcNow;
+}
+
+public class CameraHealthCheckResults
+{
+    public bool OverallHealthy { get; set; }
+    public List<HealthCheckResult> Results { get; set; } = new();
+    public DateTime CheckedAt { get; set; } = DateTime.UtcNow;
+    public TimeSpan TotalResponseTime { get; set; }
 }

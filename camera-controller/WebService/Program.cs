@@ -3,6 +3,8 @@ using WebService.Factories;
 using WebService.Configuration;
 using CameraController.Contracts.Interfaces;
 using CameraController.Contracts.Models;
+using Lightview.Shared.Contracts.Configuration;
+using Lightview.Shared.Contracts.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,6 +33,9 @@ var coreServiceConfig = builder.Configuration.GetSection("CoreService").Get<Core
     ?? throw new InvalidOperationException("CoreService configuration is required");
 builder.Services.AddSingleton(coreServiceConfig);
 
+// Configure RabbitMQ
+builder.Services.Configure<RabbitMQConfiguration>(builder.Configuration.GetSection(RabbitMQConfiguration.SectionName));
+
 // Register HTTP client factory
 builder.Services.AddHttpClient();
 
@@ -43,7 +48,7 @@ builder.Services.AddSingleton<ICameraMonitoringFactory, CameraMonitoringFactory>
 
 // Register application services
 builder.Services.AddSingleton<ICameraService, CameraService>();
-builder.Services.AddSingleton<IEventPublisherService, EventPublisherService>();
+builder.Services.AddSingleton<ICameraEventPublisher, RabbitMQCameraEventPublisher>();
 builder.Services.AddSingleton<IMediaMtxService, MediaMtxService>();
 
 // Register background services

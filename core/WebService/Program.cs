@@ -4,6 +4,8 @@ using Persistence;
 using WebService.Hubs;
 using WebService.Services;
 using WebService.Authentication;
+using Lightview.Shared.Contracts.Configuration;
+using Lightview.Shared.Contracts.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -25,6 +27,14 @@ builder.Services.AddSignalR();
 builder.Services.AddPersistence(builder.Configuration);
 builder.Services.AddCameraControllerClient(builder.Configuration);
 builder.Services.AddCameraManager();
+
+// Configure RabbitMQ
+builder.Services.Configure<RabbitMQConfiguration>(builder.Configuration.GetSection(RabbitMQConfiguration.SectionName));
+
+// Add RabbitMQ services
+builder.Services.AddSingleton<ICameraEventConsumer, RabbitMQCameraEventConsumer>();
+builder.Services.AddSingleton<CameraEventHandlerService>();
+builder.Services.AddHostedService<CameraEventConsumerService>();
 
 // Add authentication services
 builder.Services.AddScoped<IPasswordService, PasswordService>();
@@ -128,6 +138,9 @@ var app = builder.Build();
 // Initialize database
 await InitializeDatabaseAsync(app.Services);
 
+// Initialize camera event forwarding service
+InitializeCameraEventHandlerService(app.Services);
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -146,6 +159,13 @@ app.MapControllers();
 app.MapHub<CameraHub>("/cameraHub").RequireCors("AllowFrontend");
 
 app.Run();
+
+static void InitializeCameraEventHandlerService(IServiceProvider serviceProvider)
+{
+    // Initialize the event handler service to ensure event subscriptions are set up
+    var eventHandlerService = serviceProvider.GetRequiredService<CameraEventHandlerService>();
+    Console.WriteLine("Camera event handler service initialized");
+}
 
 static async Task InitializeDatabaseAsync(IServiceProvider serviceProvider)
 {

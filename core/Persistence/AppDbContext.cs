@@ -24,7 +24,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Username).HasMaxLength(100);
             entity.Property(e => e.Password).HasMaxLength(100);
             entity.Property(e => e.Protocol).IsRequired();
-            entity.Property(e => e.Status).IsRequired();
+            entity.Property(e => e.Status).IsRequired().HasDefaultValue(0); // Default to Offline
             entity.Property(e => e.CreatedAt).IsRequired();
             
             // Configure JSON columns for PostgreSQL

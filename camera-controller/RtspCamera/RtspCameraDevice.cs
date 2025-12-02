@@ -19,15 +19,30 @@ public class RtspCameraDevice : ICamera
     private readonly HttpClient _httpClient;
     private readonly List<CameraProfile> _profiles;
     private bool _disposed;
+    
+    // Health check timeouts
+    private readonly TimeSpan _pingTimeout = TimeSpan.FromSeconds(5);
+    private readonly TimeSpan _streamTimeout = TimeSpan.FromSeconds(10);
+    private readonly TimeSpan _credentialsTimeout = TimeSpan.FromSeconds(8);
 
     public Guid Id => _configuration.Id;
-    public CameraStatus Status { get; private set; } = CameraStatus.Disabled;
+    public CameraStatus Status { get; private set; } = CameraStatus.Offline;
     public Camera Configuration => _configuration;
     public CameraCapabilities? Capabilities { get; private set; }
     public IReadOnlyList<CameraProfile> Profiles => _profiles.AsReadOnly();
     public IPtzControl? PtzControl => null; // Basic RTSP cameras typically don't have PTZ
 
     public event EventHandler<CameraStatusChangedEventArgs>? StatusChanged;
+
+    public void UpdateStatus(CameraStatus status, string? reason = null)
+    {
+        var previousStatus = Status;
+        if (previousStatus != status)
+        {
+            Status = status;
+            OnStatusChanged(previousStatus, status, reason ?? $"Status updated to {status}");
+        }
+    }
 
     public RtspCameraDevice(Camera configuration, ILogger<RtspCameraDevice>? logger = null)
     {
@@ -85,45 +100,31 @@ public class RtspCameraDevice : ICamera
             _logger?.LogInformation("Connecting to RTSP camera {CameraName} at {Url}", 
                 _configuration.Name, _configuration.Url);
 
-            var previousStatus = Status;
-            Status = CameraStatus.Connecting;
-            OnStatusChanged(previousStatus, Status);
+            UpdateStatus(CameraStatus.Connecting, "Starting connection process");
 
-            // Test network connectivity first
-            if (!await TestNetworkConnectivityAsync(cancellationToken))
+            // Perform all health checks during connection
+            var healthResults = await PerformAllHealthChecksAsync(cancellationToken);
+            
+            if (healthResults.OverallHealthy)
             {
-                Status = CameraStatus.Offline;
-                OnStatusChanged(CameraStatus.Connecting, Status);
-                return false;
-            }
-            else
-            {
-                // Network is reachable - camera is offline but reachable
-                Status = CameraStatus.Offline;
-                OnStatusChanged(CameraStatus.Connecting, Status);
-            }
-
-            // Test RTSP stream availability
-            var rtspUrl = _configuration.Url.ToString();
-            if (await TestRtspStreamAsync(rtspUrl, cancellationToken))
-            {
-                Status = CameraStatus.Online;
-                OnStatusChanged(CameraStatus.Offline, Status);
-                _logger?.LogInformation("Successfully connected to RTSP camera {CameraName} - stream available", _configuration.Name);
+                UpdateStatus(CameraStatus.Online, "All health checks passed");
+                _configuration.LastConnectedAt = DateTime.UtcNow;
+                _logger?.LogInformation("Successfully connected to RTSP camera {CameraName} - all checks passed", _configuration.Name);
                 return true;
             }
             else
             {
-                // Network is reachable but stream is not available - stay offline
-                _logger?.LogWarning("RTSP stream test failed for camera {CameraName} - network reachable but stream unavailable", _configuration.Name);
+                var failedChecks = string.Join(", ", healthResults.Results.Where(r => !r.IsSuccessful).Select(r => r.CheckName));
+                UpdateStatus(CameraStatus.Offline, $"Health checks failed: {failedChecks}");
+                _logger?.LogWarning("Connection failed for RTSP camera {CameraName} - failed checks: {FailedChecks}", 
+                    _configuration.Name, failedChecks);
                 return false;
             }
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Failed to connect to RTSP camera {CameraName}", _configuration.Name);
-            Status = CameraStatus.Error;
-            OnStatusChanged(CameraStatus.Connecting, Status);
+            UpdateStatus(CameraStatus.Error, $"Connection error: {ex.Message}");
             return false;
         }
     }
@@ -133,9 +134,7 @@ public class RtspCameraDevice : ICamera
         try
         {
             _logger?.LogInformation("Disconnecting from RTSP camera {CameraName}", _configuration.Name);
-            var previousStatus = Status;
-            Status = CameraStatus.Disabled;
-            OnStatusChanged(previousStatus, Status);
+            UpdateStatus(CameraStatus.Offline, "Disconnected");
             await Task.CompletedTask; // RTSP doesn't require explicit disconnection
         }
         catch (Exception ex)
@@ -146,15 +145,159 @@ public class RtspCameraDevice : ICamera
 
     public async Task<bool> PingAsync(CancellationToken cancellationToken = default)
     {
+        var result = await PingCheckAsync(cancellationToken);
+        return result.IsSuccessful;
+    }
+
+    public async Task<HealthCheckResult> PingCheckAsync(CancellationToken cancellationToken = default)
+    {
+        var result = new HealthCheckResult { CheckName = "Ping" };
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        
         try
         {
-            return await TestNetworkConnectivityAsync(cancellationToken);
+            using var ping = new System.Net.NetworkInformation.Ping();
+            var reply = await ping.SendPingAsync(_configuration.Url.Host, (int)_pingTimeout.TotalMilliseconds);
+            
+            stopwatch.Stop();
+            result.ResponseTime = stopwatch.Elapsed;
+            result.IsSuccessful = reply.Status == System.Net.NetworkInformation.IPStatus.Success;
+            
+            if (!result.IsSuccessful)
+            {
+                result.ErrorMessage = $"Ping failed: {reply.Status}";
+            }
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Ping test failed for RTSP camera {CameraName}", _configuration.Name);
-            return false;
+            stopwatch.Stop();
+            result.ResponseTime = stopwatch.Elapsed;
+            result.IsSuccessful = false;
+            result.ErrorMessage = $"Ping error: {ex.Message}";
+            _logger?.LogDebug(ex, "Ping check failed for {Host}", _configuration.Url.Host);
         }
+        
+        return result;
+    }
+
+    public async Task<HealthCheckResult> CredentialsCheckAsync(CancellationToken cancellationToken = default)
+    {
+        var result = new HealthCheckResult { CheckName = "Credentials" };
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        
+        try
+        {
+            // If no credentials are provided, consider it successful
+            if (string.IsNullOrEmpty(_configuration.Username) && string.IsNullOrEmpty(_configuration.Password))
+            {
+                result.IsSuccessful = true;
+                stopwatch.Stop();
+                result.ResponseTime = stopwatch.Elapsed;
+                return result;
+            }
+            
+            // Test credentials by attempting an HTTP request to camera (if HTTP interface available)
+            var httpUrl = $"http://{_configuration.Url.Host}:{(_configuration.Url.Port > 0 ? _configuration.Url.Port : 80)}";
+            
+            using var request = new HttpRequestMessage(HttpMethod.Get, httpUrl);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(_credentialsTimeout);
+            
+            var response = await _httpClient.SendAsync(request, cts.Token);
+            
+            stopwatch.Stop();
+            result.ResponseTime = stopwatch.Elapsed;
+            
+            // Any response (including 401) means credentials check passed - we can reach the camera
+            result.IsSuccessful = true;
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            result.ResponseTime = stopwatch.Elapsed;
+            result.IsSuccessful = false;
+            result.ErrorMessage = $"Credentials check error: {ex.Message}";
+            _logger?.LogDebug(ex, "Credentials check failed for camera {CameraName}", _configuration.Name);
+        }
+        
+        return result;
+    }
+
+    public async Task<HealthCheckResult> StreamCheckAsync(CancellationToken cancellationToken = default)
+    {
+        var result = new HealthCheckResult { CheckName = "Stream" };
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        
+        try
+        {
+            var rtspUrl = _configuration.Url.ToString();
+            var streamAvailable = await TestRtspStreamAsync(rtspUrl, cancellationToken);
+            
+            stopwatch.Stop();
+            result.ResponseTime = stopwatch.Elapsed;
+            result.IsSuccessful = streamAvailable;
+            
+            if (!result.IsSuccessful)
+            {
+                result.ErrorMessage = "RTSP stream is not accessible";
+            }
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            result.ResponseTime = stopwatch.Elapsed;
+            result.IsSuccessful = false;
+            result.ErrorMessage = $"Stream check error: {ex.Message}";
+            _logger?.LogDebug(ex, "Stream check failed for RTSP stream {RtspUrl}", _configuration.Url);
+        }
+        
+        return result;
+    }
+
+    public async Task<CameraHealthCheckResults> PerformAllHealthChecksAsync(CancellationToken cancellationToken = default)
+    {
+        var overallStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var results = new CameraHealthCheckResults();
+        
+        try
+        {
+            // Perform all health checks
+            var pingTask = PingCheckAsync(cancellationToken);
+            var credentialsTask = CredentialsCheckAsync(cancellationToken);
+            var streamTask = StreamCheckAsync(cancellationToken);
+            
+            await Task.WhenAll(pingTask, credentialsTask, streamTask);
+            
+            results.Results.Add(await pingTask);
+            results.Results.Add(await credentialsTask);
+            results.Results.Add(await streamTask);
+            
+            // Overall health is successful if all checks pass
+            results.OverallHealthy = results.Results.All(r => r.IsSuccessful);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error performing health checks for camera {CameraName}", _configuration.Name);
+            results.OverallHealthy = false;
+            
+            // Add error result if no individual results were added
+            if (results.Results.Count == 0)
+            {
+                results.Results.Add(new HealthCheckResult
+                {
+                    CheckName = "Overall",
+                    IsSuccessful = false,
+                    ErrorMessage = $"Health check error: {ex.Message}"
+                });
+            }
+        }
+        finally
+        {
+            overallStopwatch.Stop();
+            results.TotalResponseTime = overallStopwatch.Elapsed;
+        }
+        
+        return results;
     }
 
     public async Task<OnvifDeviceInfo?> GetDeviceInfoAsync(CancellationToken cancellationToken = default)
@@ -207,20 +350,7 @@ public class RtspCameraDevice : ICamera
         return false;
     }
 
-    private async Task<bool> TestNetworkConnectivityAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            using var ping = new Ping();
-            var reply = await ping.SendPingAsync(_configuration.Url.Host, 5000);
-            return reply.Status == IPStatus.Success;
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogDebug(ex, "Ping test failed for {Host}", _configuration.Url.Host);
-            return false;
-        }
-    }
+
 
     private async Task<bool> TestRtspStreamAsync(string rtspUrl, CancellationToken cancellationToken)
     {
@@ -292,7 +422,7 @@ public class RtspCameraDevice : ICamera
         }
     }
 
-    private void OnStatusChanged(CameraStatus previousStatus, CameraStatus currentStatus)
+    private void OnStatusChanged(CameraStatus previousStatus, CameraStatus currentStatus, string? reason = null)
     {
         if (previousStatus != currentStatus)
         {
@@ -300,7 +430,7 @@ public class RtspCameraDevice : ICamera
             {
                 PreviousStatus = previousStatus,
                 CurrentStatus = currentStatus,
-                Reason = $"Status changed from {previousStatus} to {currentStatus}"
+                Reason = reason ?? $"Status changed from {previousStatus} to {currentStatus}"
             });
         }
     }

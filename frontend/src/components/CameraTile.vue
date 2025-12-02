@@ -39,16 +39,21 @@
             class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium backdrop-blur-sm"
             :class="[
               isOnline
-                ? 'bg-green-500/80 text-white' 
-                : camera.status === CameraStatus.Disabled
-                ? 'bg-gray-500/80 text-white'
+                ? 'bg-green-500/80 text-white'
+                : camera.status === CameraStatus.Degraded
+                ? 'bg-yellow-500/80 text-white'
+                : camera.status === CameraStatus.Connecting
+                ? 'bg-blue-500/80 text-white'
                 : 'bg-red-500/80 text-white'
             ]"
           >
             <div 
               class="w-2 h-2 rounded-full mr-1.5"
               :class="[
-                isOnline ? 'bg-green-200' : camera.status === CameraStatus.Disabled ? 'bg-gray-200' : 'bg-red-200'
+                isOnline ? 'bg-green-200' 
+                : camera.status === CameraStatus.Degraded ? 'bg-yellow-200' 
+                : camera.status === CameraStatus.Connecting ? 'bg-blue-200'
+                : 'bg-red-200'
               ]"
             ></div>
             {{ statusText }}
@@ -119,11 +124,11 @@
                 ? 'bg-orange-600 text-white hover:bg-orange-700' 
                 : 'bg-green-600 text-white hover:bg-green-700'
             ]"
-            :disabled="isConnecting || camera.status === CameraStatus.Connecting"
+            :disabled="camera.status === CameraStatus.Connecting"
           >
-            <span v-if="isConnecting" class="flex items-center">
+            <span v-if="camera.status === CameraStatus.Connecting" class="flex items-center">
               <div class="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></div>
-              {{ isOnline ? 'Disconnecting...' : 'Connecting...' }}
+              Connecting...
             </span>
             <span v-else>
               {{ isOnline ? 'Disconnect' : 'Connect' }}
@@ -171,28 +176,23 @@ const emit = defineEmits<{
   'disconnect': [camera: Camera]
 }>()
 
-// Local state for connection operations
-const isConnecting = ref(false)
-
 // Computed properties for handling the new backend models
 const isOnline = computed(() => 
-  props.camera.status === CameraStatus.Online
+  props.camera.status === CameraStatus.Online || props.camera.status === CameraStatus.Degraded
 )
 
 const statusText = computed(() => {
   switch (props.camera.status) {
-    case CameraStatus.Disabled:
-      return 'Disabled'
-    case CameraStatus.Online:
-      return 'Online'
     case CameraStatus.Offline:
       return 'Offline'
     case CameraStatus.Connecting:
       return 'Connecting'
+    case CameraStatus.Online:
+      return 'Online'
+    case CameraStatus.Degraded:
+      return 'Degraded'
     case CameraStatus.Error:
       return 'Error'
-    case CameraStatus.Maintenance:
-      return 'Maintenance'
     default:
       return 'Unknown'
   }
@@ -236,20 +236,11 @@ const formatUrl = (url: string): string => {
   }
 }
 
-const handleConnectionToggle = async () => {
-  isConnecting.value = true
-  
-  try {
-    if (isOnline.value) {
-      emit('disconnect', props.camera)
-    } else {
-      emit('connect', props.camera)
-    }
-  } finally {
-    // Reset connecting state after a delay to allow for visual feedback
-    setTimeout(() => {
-      isConnecting.value = false
-    }, 1000)
+const handleConnectionToggle = () => {
+  if (isOnline.value) {
+    emit('disconnect', props.camera)
+  } else {
+    emit('connect', props.camera)
   }
 }
 

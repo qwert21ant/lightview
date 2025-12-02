@@ -101,6 +101,24 @@ public class CameraService : ICameraService
         return persistenceCamera.ToSharedCamera();
     }
 
+    /// <summary>
+    /// Update camera in persistence only, without calling camera-controller
+    /// Used by event handlers to avoid circular updates
+    /// </summary>
+    public async Task UpdateCameraPersistenceOnlyAsync(Guid id, Camera updatedCamera)
+    {
+        var persistenceCamera = await _dbContext.Cameras.FindAsync(id);
+        if (persistenceCamera == null)
+        {
+            _logger.LogWarning("Camera {CameraId} not found in persistence for update", id);
+            return;
+        }
+
+        persistenceCamera.UpdatePersistenceCamera(updatedCamera);
+        await _dbContext.SaveChangesAsync();
+        _logger.LogDebug("Camera {CameraId} updated in persistence only", id);
+    }
+
     public async Task<bool> DeleteCameraAsync(Guid id)
     {
         var camera = await _dbContext.Cameras.FindAsync(id);
