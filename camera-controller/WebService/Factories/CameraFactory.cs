@@ -32,9 +32,6 @@ public class CameraFactory : ICameraFactory
             case CameraProtocol.Rtsp:
                 var rtspLogger = _loggerFactory.CreateLogger<RtspCameraDevice>();
                 return new RtspCameraDevice(configuration, rtspLogger);
-            case CameraProtocol.Http:
-                // return new HttpCamera(configuration, _logger);
-                throw new NotImplementedException($"HTTP camera implementation not yet implemented");
         }
 
         throw new NotImplementedException($"ICamera implementation for protocol {configuration.Protocol} not yet implemented");

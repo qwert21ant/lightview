@@ -60,13 +60,13 @@
             v-model="form.url"
             type="text"
             required
-            placeholder="rtsp://192.168.1.100:554/stream1"
+            placeholder="rtsp://192.168.1.100:554/stream or http://192.168.1.100/stream"
             class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             :class="{ 'border-red-300': errors.url }"
           />
           <p v-if="errors.url" class="text-red-600 text-xs mt-1">{{ errors.url }}</p>
           <p class="text-gray-500 text-xs mt-1">
-            Enter the full URL or IP address for the camera stream
+            Enter camera stream URL (rtsp://, http://, or https://)
           </p>
         </div>
         
@@ -142,6 +142,7 @@ import { ref, reactive, watch } from 'vue'
 import { XMarkIcon } from '@heroicons/vue/24/outline'
 import type { AddCameraRequest } from '@/types/camera'
 import { CameraProtocol } from '@/types/camera'
+import { validateCameraUrl, validateCameraName, validateCameraProtocol } from '@/utils/validation'
 
 interface Props {
   isOpen: boolean
@@ -218,33 +219,24 @@ const validateForm = (): boolean => {
   })
   
   // Validate name
-  if (!form.name.trim()) {
-    errors.name = 'Camera name is required'
+  const nameValidation = validateCameraName(form.name)
+  if (!nameValidation.isValid) {
+    errors.name = nameValidation.error || ''
     isValid = false
   }
   
   // Validate protocol
-  if (!form.protocol) {
-    errors.protocol = 'Camera protocol is required'
+  const protocolValidation = validateCameraProtocol(form.protocol)
+  if (!protocolValidation.isValid) {
+    errors.protocol = protocolValidation.error || ''
     isValid = false
   }
   
   // Validate URL
-  if (!form.url.trim()) {
-    errors.url = 'Camera URL is required'
+  const urlValidation = validateCameraUrl(form.url, form.protocol)
+  if (!urlValidation.isValid) {
+    errors.url = urlValidation.error || ''
     isValid = false
-  } else {
-    // Basic URL validation
-    try {
-      new URL(form.url)
-    } catch {
-      // Check if it's an IP address
-      const ipRegex = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/
-      if (!ipRegex.test(form.url)) {
-        errors.url = 'Please enter a valid URL or IP address'
-        isValid = false
-      }
-    }
   }
   
   return isValid

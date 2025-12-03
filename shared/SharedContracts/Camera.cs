@@ -43,8 +43,7 @@ public enum CameraStatus
 public enum CameraProtocol
 {
     Onvif,
-    Rtsp,
-    Http
+    Rtsp
 }
 
 // Health Check Models
