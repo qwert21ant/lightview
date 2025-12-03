@@ -16,6 +16,11 @@ public class MediaMtxConfiguration
     public string WebRtcUrl { get; set; } = "http://localhost:8889";
 
     /// <summary>
+    /// RTSP server URL for local stream access (e.g., "rtsp://localhost:8554")
+    /// </summary>
+    public string RtspUrl { get; set; } = "rtsp://localhost:8554";
+
+    /// <summary>
     /// Username for MediaMTX API authentication (if required)
     /// </summary>
     public required string Username { get; set; }

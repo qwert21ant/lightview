@@ -20,26 +20,28 @@ public class CamerasController : ControllerBase
     }
 
     [HttpGet]
-    public ActionResult<ApiResponse<List<CameraStatusResponse>>> GetCameras()
+    public ActionResult<ApiResponse<List<Camera>>> GetCameras()
     {
         _logger.LogDebug("Getting all cameras");
         var managedCameras = _cameraService.GetAllCameras();
         
-        var response = managedCameras.Values.Select(monitoring => new CameraStatusResponse
+        var response = managedCameras.Values.Select(monitoring => new Camera
         {
             Id = monitoring.Camera.Id,
             Name = monitoring.Camera.Configuration.Name,
             Url = monitoring.Camera.Configuration.Url,
+            Username = monitoring.Camera.Configuration.Username,
+            Password = monitoring.Camera.Configuration.Password,
+            Protocol = monitoring.Camera.Configuration.Protocol,
             Status = monitoring.Camera.Status,
-            IsMonitoring = monitoring.IsMonitoring,
-            Health = monitoring.LastHealthStatus,
+            CreatedAt = monitoring.Camera.Configuration.CreatedAt,
             LastConnectedAt = monitoring.Camera.Configuration.LastConnectedAt,
             DeviceInfo = monitoring.Camera.Configuration.DeviceInfo,
             Capabilities = monitoring.Camera.Capabilities,
-            ProfileCount = monitoring.Camera.Profiles.Count
+            Profiles = monitoring.Camera.Profiles.ToList()
         }).ToList();
 
-        return Ok(new ApiResponse<List<CameraStatusResponse>>
+        return Ok(new ApiResponse<List<Camera>>
         {
             Success = true,
             Data = response
@@ -47,7 +49,7 @@ public class CamerasController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    public ActionResult<ApiResponse<CameraStatusResponse>> GetCamera(Guid id)
+    public ActionResult<ApiResponse<Camera>> GetCamera(Guid id)
     {
         _logger.LogDebug("Getting camera {CameraId}", id);
         var monitoring = _cameraService.GetCamera(id);
@@ -61,21 +63,23 @@ public class CamerasController : ControllerBase
             });
         }
 
-        var response = new CameraStatusResponse
+        var response = new Camera
         {
             Id = monitoring.Camera.Id,
             Name = monitoring.Camera.Configuration.Name,
             Url = monitoring.Camera.Configuration.Url,
+            Username = monitoring.Camera.Configuration.Username,
+            Password = monitoring.Camera.Configuration.Password,
+            Protocol = monitoring.Camera.Configuration.Protocol,
             Status = monitoring.Camera.Status,
-            IsMonitoring = monitoring.IsMonitoring,
-            Health = monitoring.LastHealthStatus,
+            CreatedAt = monitoring.Camera.Configuration.CreatedAt,
             LastConnectedAt = monitoring.Camera.Configuration.LastConnectedAt,
             DeviceInfo = monitoring.Camera.Configuration.DeviceInfo,
             Capabilities = monitoring.Camera.Capabilities,
-            ProfileCount = monitoring.Camera.Profiles.Count
+            Profiles = monitoring.Camera.Profiles.ToList()
         };
 
-        return Ok(new ApiResponse<CameraStatusResponse>
+        return Ok(new ApiResponse<Camera>
         {
             Success = true,
             Data = response
@@ -83,7 +87,7 @@ public class CamerasController : ControllerBase
     }
 
     [HttpPost("{id}")]
-    public async Task<ActionResult<ApiResponse<CameraStatusResponse>>> CreateCamera(Guid id, [FromBody] AddCameraRequest request)
+    public async Task<ActionResult<ApiResponse<Camera>>> CreateCamera(Guid id, [FromBody] AddCameraRequest request)
     {
         _logger.LogInformation("Creating new camera {CameraName} with URL {Url}", request.Name, request.Url);
         try
@@ -120,21 +124,25 @@ public class CamerasController : ControllerBase
             
             var monitoring = await _cameraService.AddCameraAsync(camera, monitoringConfig);
 
-            var response = new CameraStatusResponse
+            var response = new Camera
             {
                 Id = monitoring.Camera.Id,
                 Name = monitoring.Camera.Configuration.Name,
                 Url = monitoring.Camera.Configuration.Url,
+                Username = monitoring.Camera.Configuration.Username,
+                Password = monitoring.Camera.Configuration.Password,
+                Protocol = monitoring.Camera.Configuration.Protocol,
                 Status = monitoring.Camera.Status,
-                IsMonitoring = monitoring.IsMonitoring,
-                Health = monitoring.LastHealthStatus,
+                CreatedAt = monitoring.Camera.Configuration.CreatedAt,
+                LastConnectedAt = monitoring.Camera.Configuration.LastConnectedAt,
+                DeviceInfo = monitoring.Camera.Configuration.DeviceInfo,
                 Capabilities = monitoring.Camera.Capabilities,
-                ProfileCount = monitoring.Camera.Profiles.Count
+                Profiles = monitoring.Camera.Profiles.ToList()
             };
 
             return CreatedAtAction(nameof(GetCamera), 
                 new { id = id }, 
-                new ApiResponse<CameraStatusResponse>
+                new ApiResponse<Camera>
                 {
                     Success = true,
                     Data = response

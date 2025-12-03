@@ -37,7 +37,7 @@ public class StreamsController : ControllerBase
         {
             _logger.LogInformation("Getting WebRTC URL for camera {CameraId}", cameraId);
             
-            var url = await _mediaMtxService.GetWebRtcUrlAsync(cameraId, cancellationToken);
+            var url = await _mediaMtxService.GetWebRtcUrlAsync(cameraId, "main", cancellationToken);
             return Ok(url);
         }
         catch (Exception ex)
@@ -62,7 +62,7 @@ public class StreamsController : ControllerBase
         {
             _logger.LogInformation("Checking stream status for camera {CameraId}", cameraId);
             
-            var isActive = await _mediaMtxService.IsStreamActiveAsync(cameraId, cancellationToken);
+            var isActive = await _mediaMtxService.IsStreamActiveAsync(cameraId, "main", cancellationToken);
             
             return Ok(new { 
                 cameraId = cameraId,
@@ -92,7 +92,7 @@ public class StreamsController : ControllerBase
         {
             _logger.LogInformation("Getting stream statistics for camera {CameraId}", cameraId);
             
-            var statistics = await _mediaMtxService.GetStreamStatisticsAsync(cameraId, cancellationToken);
+            var statistics = await _mediaMtxService.GetStreamStatisticsAsync(cameraId, "main", cancellationToken);
             
             if (statistics == null)
             {
@@ -129,8 +129,8 @@ public class StreamsController : ControllerBase
             {
                 try
                 {
-                    var webRtcUrl = await _mediaMtxService.GetWebRtcUrlAsync(cameraId, cancellationToken);
-                    var isActive = await _mediaMtxService.IsStreamActiveAsync(cameraId, cancellationToken);
+                    var webRtcUrl = await _mediaMtxService.GetWebRtcUrlAsync(cameraId, "main", cancellationToken);
+                    var isActive = await _mediaMtxService.IsStreamActiveAsync(cameraId, "main", cancellationToken);
                     
                     return new KeyValuePair<Guid, object>(cameraId, new
                     {

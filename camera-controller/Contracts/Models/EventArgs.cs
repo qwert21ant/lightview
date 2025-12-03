@@ -30,5 +30,4 @@ public class CameraHealthChangedEventArgs : EventArgs
 {
     public CameraHealthStatus PreviousHealth { get; set; } = new();
     public CameraHealthStatus CurrentHealth { get; set; } = new();
-    public Guid CameraId { get; set; }
 }

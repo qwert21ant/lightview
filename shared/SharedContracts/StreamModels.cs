@@ -7,8 +7,22 @@ public class CameraProfile
     public string Name { get; set; } = string.Empty;
     public VideoSettings Video { get; set; } = new();
     public AudioSettings? Audio { get; set; }
-    public string? RtspUri { get; set; }
-    public string? HttpUri { get; set; }
+    
+    /// <summary>
+    /// Original RTSP feed URI from the camera (source)
+    /// </summary>
+    public Uri? OriginFeedUri { get; set; }
+    
+    /// <summary>
+    /// Local RTSP URI proxied through MediaMTX
+    /// </summary>
+    public Uri? RtspUri { get; set; }
+    
+    /// <summary>
+    /// Local WebRTC URI provided by MediaMTX
+    /// </summary>
+    public Uri? WebRtcUri { get; set; }
+    
     public bool IsMainStream { get; set; }
 }
 

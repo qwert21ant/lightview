@@ -10,7 +10,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=lightview;Username=postgres;Password=postgres
-      - CameraController__BaseUrl=http://camera-controller:5000/
+      - CameraController__BaseUrl=http://camera-controller:5002/
       - Admin__Password=${ADMIN_PASSWORD:-admin123}
       - Jwt__SecretKey=${JWT_SECRET_KEY:-your-very-secure-secret-key-that-is-at-least-32-characters-long}
       - CameraController__ApiKey=${CAMERA_CONTROLLER_API_KEY:-lightview-camera-controller-api-key-2024}
@@ -32,7 +32,7 @@ services:
       dockerfile: camera-controller/Dockerfile
     container_name: lightview-camera-controller
     ports:
-      - "5002:5000"
+      - "5002:5002"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - MediaMtx__ApiUrl=http://mediamtx:9997/v3/
@@ -121,8 +121,8 @@ services:
       - POSTGRES_DB=lightview
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-    expose:
-      - "5432"
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
     restart: unless-stopped

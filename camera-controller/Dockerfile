@@ -30,7 +30,7 @@ RUN dotnet publish WebService.csproj -c $BUILD_CONFIGURATION -o /app/publish /p:
 
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
 WORKDIR /app
-EXPOSE 5000
+EXPOSE 5002
 
 # Install FFmpeg and other dependencies
 RUN apt-get update && \
@@ -49,11 +49,11 @@ RUN chown -R appuser:appuser /app
 USER appuser
 
 # Set environment variables
-ENV ASPNETCORE_URLS=http://+:5000
+ENV ASPNETCORE_URLS=http://+:5002
 ENV ASPNETCORE_ENVIRONMENT=Production
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:5000/health || exit 1
+    CMD curl -f http://localhost:5002/health || exit 1
 
 ENTRYPOINT ["dotnet", "WebService.dll"]

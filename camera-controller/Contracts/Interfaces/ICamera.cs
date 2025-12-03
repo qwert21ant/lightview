@@ -74,6 +74,11 @@ public interface ICamera : IDisposable, ICameraHealthCheck
     Task<List<CameraProfile>> GetProfilesAsync(CancellationToken cancellationToken = default);
     
     /// <summary>
+    /// Update camera profiles (used after MediaMTX configuration)
+    /// </summary>
+    void UpdateProfiles(List<CameraProfile> profiles);
+    
+    /// <summary>
     /// Get stream URI for specified profile
     /// </summary>
     Task<Uri?> GetStreamUriAsync(string profileToken, CancellationToken cancellationToken = default);

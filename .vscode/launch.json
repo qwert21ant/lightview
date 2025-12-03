@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch CC",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build CC",
+      "program": "${workspaceFolder}/camera-controller/WebService/bin/Debug/net9.0/WebService.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/camera-controller/WebService",
+      "stopAtEntry": false,
+      "console": "integratedTerminal"
+    }
+  ]
+}

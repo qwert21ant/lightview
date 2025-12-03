@@ -44,6 +44,23 @@ public class RtspCameraDevice : ICamera
         }
     }
 
+    public void UpdateProfiles(List<CameraProfile> profiles)
+    {
+        _profiles.Clear();
+        _profiles.AddRange(profiles);
+        _logger?.LogDebug("Updated {ProfileCount} profiles for camera {CameraId}", profiles.Count, Id);
+    }
+
+    private void UpdateProfilesWithRtspUri()
+    {
+        // Update all profiles with the origin feed URI from the camera configuration
+        foreach (var profile in _profiles)
+        {
+            profile.OriginFeedUri = _configuration.Url;
+        }
+        _logger?.LogDebug("Updated {ProfileCount} profiles with origin feed URI for camera {CameraId}", _profiles.Count, Id);
+    }
+
     public RtspCameraDevice(Camera configuration, ILogger<RtspCameraDevice>? logger = null)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
@@ -107,6 +124,9 @@ public class RtspCameraDevice : ICamera
             
             if (healthResults.OverallHealthy)
             {
+                // Update profiles with RTSP URIs after successful connection
+                UpdateProfilesWithRtspUri();
+                
                 UpdateStatus(CameraStatus.Online, "All health checks passed");
                 _configuration.LastConnectedAt = DateTime.UtcNow;
                 _logger?.LogInformation("Successfully connected to RTSP camera {CameraName} - all checks passed", _configuration.Name);
@@ -325,7 +345,8 @@ public class RtspCameraDevice : ICamera
     {
         await Task.CompletedTask;
         
-        // For RTSP cameras, we return the RTSP URL regardless of profile
+        // For RTSP cameras, we return the origin feed URL regardless of profile
+        // This is the direct camera stream URL that will be proxied through MediaMTX
         return _configuration.Url;
     }
 

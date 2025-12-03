@@ -69,9 +69,7 @@ public class CameraService : ICameraService, IDisposable
                 Reason = "Camera added to management - ready for connection"
             });
 
-            // Configure MediaMTX stream if camera has RTSP capabilities
-            await ConfigureMediaMtxStreamAsync(camera, cameraConfig);
-
+            // Do not configure MediaMTX streams yet - they will be configured when camera connects
             // Do not start monitoring automatically - it will start when camera connects
 
             _logger.LogInformation("Successfully added and started monitoring camera {CameraId}", cameraConfig.Id);
@@ -96,8 +94,8 @@ public class CameraService : ICameraService, IDisposable
 
             _logger.LogInformation("Removing camera {CameraId}", cameraId);
 
-            // Remove MediaMTX stream configuration
-            await RemoveMediaMtxStreamAsync(cameraId);
+            // Remove MediaMTX stream configurations
+            await RemoveMediaMtxStreamsAsync(cameraId);
 
             // Stop monitoring and dispose
             await monitoring.StopMonitoringAsync();
@@ -311,7 +309,7 @@ public class CameraService : ICameraService, IDisposable
                 // Camera became unhealthy
                 await _eventPublisher.PublishCameraEventAsync(new CameraErrorEvent
                 {
-                    CameraId = args.CameraId,
+                    CameraId = monitoring.Camera.Id,
                     ErrorCode = "HEALTH_CHECK_FAILED",
                     ErrorMessage = string.Join(", ", args.CurrentHealth.Issues),
                     Severity = ErrorSeverity.Warning,
@@ -323,7 +321,7 @@ public class CameraService : ICameraService, IDisposable
                 // Camera became healthy again
                 await _eventPublisher.PublishCameraEventAsync(new CameraStatusChangedEvent
                 {
-                    CameraId = args.CameraId,
+                    CameraId = monitoring.Camera.Id,
                     PreviousStatus = CameraStatus.Error,
                     CurrentStatus = CameraStatus.Online,
                     Reason = "Health check recovered"
@@ -362,7 +360,7 @@ public class CameraService : ICameraService, IDisposable
                 _logger.LogDebug(ex, "Could not retrieve device info for camera {CameraId} - this is normal for RTSP cameras", camera.Id);
             }
 
-            // Get profiles
+            // Get profiles - these should already be configured with MediaMTX URIs after connection
             List<CameraProfile> profiles;
             try
             {
@@ -431,45 +429,104 @@ public class CameraService : ICameraService, IDisposable
     }
 
     /// <summary>
-    /// Configure MediaMTX stream for a camera
+    /// Configure MediaMTX streams for camera profiles after connection
     /// </summary>
-    private async Task ConfigureMediaMtxStreamAsync(ICamera camera, Camera cameraConfig)
+    private async Task<List<CameraProfile>> ConfigureMediaMtxStreamsAsync(ICamera camera)
     {
         try
         {
-            // Only configure MediaMTX for cameras that provide RTSP streams
-            if (cameraConfig.Protocol == CameraProtocol.Rtsp || cameraConfig.Protocol == CameraProtocol.Onvif)
+            // Get profiles with RTSP URIs
+            var profiles = await camera.GetProfilesAsync();
+            if (profiles.Any())
             {
-                var streamUri = await camera.GetStreamUriAsync("main");
-                if (streamUri != null)
-                {
-                    var streamPath = await _mediaMtxService.ConfigureRtspInputAsync(cameraConfig, streamUri.ToString());
-                    _logger.LogInformation("Configured MediaMTX stream for camera {CameraId} at path {StreamPath}", 
-                        cameraConfig.Id, streamPath);
-                }
+                var updatedProfiles = await _mediaMtxService.ConfigureStreamProfilesAsync(camera.Configuration, profiles);
+                _logger.LogInformation("Configured MediaMTX streams for {ProfileCount} profiles of camera {CameraId}", 
+                    updatedProfiles.Count, camera.Id);
+                return updatedProfiles;
             }
+            
+            // Return original profiles if MediaMTX not applicable
+            return camera.Profiles.ToList();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to configure MediaMTX stream for camera {CameraId}", cameraConfig.Id);
-            // Don't throw - camera can still work without MediaMTX integration
+            _logger.LogError(ex, "Failed to configure MediaMTX streams for camera {CameraId}", camera.Id);
+            // Return original profiles on error
+            return camera.Profiles.ToList();
         }
     }
 
     /// <summary>
-    /// Remove MediaMTX stream configuration for a camera
+    /// Remove MediaMTX stream configurations for a camera
     /// </summary>
-    private async Task RemoveMediaMtxStreamAsync(Guid cameraId)
+    private async Task RemoveMediaMtxStreamsAsync(Guid cameraId)
     {
         try
         {
-            await _mediaMtxService.RemoveStreamConfigurationAsync(cameraId);
-            _logger.LogInformation("Removed MediaMTX stream configuration for camera {CameraId}", cameraId);
+            await _mediaMtxService.RemoveAllStreamConfigurationsAsync(cameraId);
+            _logger.LogInformation("Removed MediaMTX stream configurations for camera {CameraId}", cameraId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to remove MediaMTX stream configuration for camera {CameraId}", cameraId);
+            _logger.LogError(ex, "Failed to remove MediaMTX stream configurations for camera {CameraId}", cameraId);
             // Don't throw - this is cleanup, shouldn't prevent camera removal
+        }
+    }
+
+    /// <summary>
+    /// Clear local URIs from camera profiles while keeping origin feed URIs
+    /// </summary>
+    private void ClearLocalUrisFromProfiles(ICamera camera)
+    {
+        try
+        {
+            var profiles = camera.Profiles.ToList();
+            var clearedProfiles = profiles.Select(p => new CameraProfile
+            {
+                Token = p.Token,
+                Name = p.Name,
+                Video = p.Video,
+                Audio = p.Audio,
+                OriginFeedUri = p.OriginFeedUri, // Keep origin feed URI
+                RtspUri = null, // Clear local RTSP URI
+                WebRtcUri = null, // Clear WebRTC URI
+                IsMainStream = p.IsMainStream
+            }).ToList();
+
+            camera.UpdateProfiles(clearedProfiles);
+            _logger.LogDebug("Cleared local URIs from {ProfileCount} profiles for camera {CameraId}", clearedProfiles.Count, camera.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to clear local URIs from profiles for camera {CameraId}", camera.Id);
+        }
+    }
+
+    /// <summary>
+    /// Publish profile updates to RabbitMQ after MediaMTX configuration
+    /// </summary>
+    private async Task PublishProfileUpdatesAsync(ICamera camera, List<CameraProfile> updatedProfiles)
+    {
+        try
+        {
+            _logger.LogDebug("Publishing profile updates for camera {CameraId}", camera.Id);
+
+            // Publish camera metadata updated event with profiles
+            await _eventPublisher.PublishCameraMetadataUpdatedAsync(new CameraMetadataUpdatedEvent
+            {
+                CameraId = camera.Id,
+                Profiles = updatedProfiles,
+                Capabilities = camera.Capabilities,
+                DeviceInfo = null, // Device info already published during connection
+                UpdateType = CameraMetadataUpdateType.Profiles
+            });
+
+            _logger.LogInformation("Successfully published profile updates for camera {CameraId} with {ProfileCount} profiles", 
+                camera.Id, updatedProfiles.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to publish profile updates for camera {CameraId}", camera.Id);
         }
     }
 
@@ -497,6 +554,20 @@ public class CameraService : ICameraService, IDisposable
             if (connected)
             {
                 _logger.LogInformation("Successfully connected to camera {CameraId}", cameraId);
+                
+                // Configure MediaMTX streams now that camera is connected
+                var updatedProfiles = await ConfigureMediaMtxStreamsAsync(monitoring.Camera);
+                
+                // Update camera profiles with MediaMTX URIs
+                if (updatedProfiles.Any())
+                {
+                    monitoring.Camera.UpdateProfiles(updatedProfiles);
+                    _logger.LogInformation("Updated {ProfileCount} profiles with MediaMTX URIs for camera {CameraId}", 
+                        updatedProfiles.Count, cameraId);
+                    
+                    // Report profile updates to RabbitMQ
+                    await PublishProfileUpdatesAsync(monitoring.Camera, updatedProfiles);
+                }
                 
                 // Start monitoring now that camera is connected
                 await monitoring.StartMonitoringAsync();
@@ -550,6 +621,15 @@ public class CameraService : ICameraService, IDisposable
             // Stop monitoring first
             await monitoring.StopMonitoringAsync();
             _logger.LogInformation("Stopped monitoring for camera {CameraId}", cameraId);
+            
+            // Remove MediaMTX streams before disconnecting
+            await RemoveMediaMtxStreamsAsync(cameraId);
+            
+            // Clear local URIs from profiles (keep origin feed URI)
+            ClearLocalUrisFromProfiles(monitoring.Camera);
+            
+            // Report profile updates after clearing local URIs
+            await PublishProfileUpdatesAsync(monitoring.Camera, monitoring.Camera.Profiles.ToList());
             
             await monitoring.Camera.DisconnectAsync();
             _logger.LogInformation("Successfully disconnected from camera {CameraId}", cameraId);
