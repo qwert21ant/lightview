@@ -83,6 +83,7 @@
 </template>
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { VideoCameraIcon, PlusIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
 import { HubConnectionState } from '@microsoft/signalr'
 import CameraTile from '@/components/CameraTile.vue'
@@ -92,6 +93,7 @@ import { useCameraManager } from '@/composables/useCamera'
 import type { Camera, AddCameraRequest } from '@/types/camera'
 import { CameraStatus } from '@/types/camera'
 
+const router = useRouter()
 const cameraManager = useCameraManager()
 
 // Reactive data
@@ -206,11 +208,8 @@ const handleDeleteCamera = async (camera: Camera) => {
 }
 
 const handleViewStream = (camera: Camera) => {
-  // TODO: Implement stream viewer
-  console.log('View stream for camera:', camera.name)
-  
-  // For now, just log the action
-  // In the future, this could open a stream viewer modal or navigate to a stream page
+  // Navigate to the live stream view
+  router.push({ name: 'live', params: { id: camera.id } })
 }
 
 const handleConnectCamera = async (camera: Camera) => {

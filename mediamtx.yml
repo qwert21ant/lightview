@@ -11,6 +11,8 @@ rtspEncryption: "no"
 webrtc: yes
 webrtcAddress: :8889
 webrtcAllowOrigin: "*"
+webrtcLocalUDPAddress: :7777
+webrtcAdditionalHosts: ["192.168.8.23"]
 
 hls: no
 srt: no

@@ -61,12 +61,23 @@ export abstract class BaseSignalRService {
       // Allow derived classes to perform post-connection initialization
       await this.onConnected();
     } catch (error) {
-      console.error(`Failed to connect to SignalR hub ${this.hubPath}:`, error);
-      this.connectionError.value = error instanceof Error ? error.message : 'Connection failed';
-      this.connectionState.value = signalR.HubConnectionState.Disconnected;
-      throw error;
+      console.error(`Failed to connect to SignalR hub ${this.hubPath}:`, error)
+      
+      // Handle authentication errors
+      if (error instanceof Error && 
+          (error.message.includes('401') || 
+           error.message.includes('Unauthorized') ||
+           error.message.includes('Authentication failed'))) {
+        console.warn('SignalR authentication failed - redirecting to login')
+        authService.logout()
+        return
+      }
+      
+      this.connectionError.value = error instanceof Error ? error.message : 'Connection failed'
+      this.connectionState.value = signalR.HubConnectionState.Disconnected
+      throw error
     } finally {
-      this.isConnecting.value = false;
+      this.isConnecting.value = false
     }
   }
 
@@ -123,12 +134,23 @@ export abstract class BaseSignalRService {
 
   // Protected methods for invoking hub methods
   protected async invoke<T = any>(methodName: string, ...args: any[]): Promise<T> {
-    this.ensureConnected();
+    this.ensureConnected()
     try {
-      return await this.connection!.invoke(methodName, ...args) as T;
+      return await this.connection!.invoke(methodName, ...args) as T
     } catch (error) {
-      console.error(`Failed to invoke ${methodName} on ${this.hubPath}:`, error);
-      throw error;
+      console.error(`Failed to invoke ${methodName} on ${this.hubPath}:`, error)
+      
+      // Handle authentication errors
+      if (error instanceof Error && 
+          (error.message.includes('401') || 
+           error.message.includes('Unauthorized') ||
+           error.message.includes('Authentication failed'))) {
+        console.warn('SignalR method invocation failed due to authentication - redirecting to login')
+        authService.logout()
+        return Promise.reject(new Error('Authentication required'))
+      }
+      
+      throw error
     }
   }
 

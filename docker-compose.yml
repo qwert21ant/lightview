@@ -36,7 +36,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - MediaMtx__ApiUrl=http://mediamtx:9997/v3/
-      - MediaMtx__WebRtcUrl=http://mediamtx:8889
+      - MediaMtx__WebRtcUrl=http://localhost:8889
       - MediaMtx__Password=${MEDIAMTX_API_PASSWORD}
       - CoreService__BaseUrl=http://core:5001/
       - CoreService__ApiKey=${CAMERA_CONTROLLER_API_KEY:-lightview-camera-controller-api-key-2024}
@@ -89,6 +89,7 @@ services:
       - "8000:8000"  # UDP/RTP
       - "8001:8001"  # UDP/RTCP
       - "8889:8889"  # WebRTC
+      - "7777:7777/udp"  # WebRTC local UDP
       - "9997:9997"  # API
     volumes:
       - ./mediamtx.yml:/mediamtx.yml:ro

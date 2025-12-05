@@ -4,8 +4,9 @@ export interface CameraProfile {
   name: string;
   video: VideoSettings;
   audio?: AudioSettings;
+  originFeedUrl?: string;
   rtspUri?: string;
-  httpUri?: string;
+  webRtcUri?: string;
   isMainStream: boolean;
 }
 

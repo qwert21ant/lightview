@@ -34,6 +34,13 @@ const router = createRouter({
       component: () => import('@/views/SettingsView.vue'),
       meta: { requiresAuth: true }
     },
+    {
+      path: '/live/:id',
+      name: 'live',
+      component: () => import('@/views/LiveView.vue'),
+      meta: { requiresAuth: true },
+      props: true
+    },
   ],
 })
 

@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { API_BASE_URL, API_TIMEOUT } from '@/config/api'
 import type { LoginRequest, LoginResponse, UserInfo } from '@/types/auth'
+import router from '@/router'
 
 // Create axios instance
 const api = axios.create({
@@ -37,6 +38,7 @@ class AuthService {
           // Don't redirect if this is a login attempt (login endpoint returns 401 for bad credentials)
           const isLoginAttempt = error.config?.url?.includes('/api/auth/login')
           if (!isLoginAttempt) {
+            console.warn('Authentication failed - redirecting to login')
             this.logout()
           }
         }
@@ -68,7 +70,15 @@ class AuthService {
     localStorage.removeItem(this.TOKEN_KEY)
     localStorage.removeItem(this.USER_KEY)
 
-    window.location.href = '/login'
+    // Use router navigation if available, fallback to window.location
+    if (router) {
+      router.push('/login').catch(() => {
+        // Fallback if router navigation fails
+        window.location.href = '/login'
+      })
+    } else {
+      window.location.href = '/login'
+    }
   }
 
   getToken(): string | null {
