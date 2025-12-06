@@ -22,9 +22,9 @@ public class RabbitMQCameraEventPublisher : ICameraEventPublisher, IDisposable
     private bool _disposed;
     private readonly object _connectionLock = new();
     private DateTime _lastReconnectAttempt = DateTime.MinValue;
-    private readonly TimeSpan _reconnectInterval = TimeSpan.FromSeconds(30);
+    private readonly TimeSpan _reconnectInterval = TimeSpan.FromSeconds(5);
     private readonly int _maxStartupRetries = 5;
-    private readonly TimeSpan _startupRetryDelay = TimeSpan.FromSeconds(5);
+    private readonly TimeSpan _startupRetryDelay = TimeSpan.FromSeconds(1);
 
     public RabbitMQCameraEventPublisher(
         ILogger<RabbitMQCameraEventPublisher> logger,
@@ -67,6 +67,8 @@ public class RabbitMQCameraEventPublisher : ICameraEventPublisher, IDisposable
 
     public async Task PublishCameraMetadataUpdatedAsync(CameraMetadataUpdatedEvent cameraEvent, CancellationToken cancellationToken = default)
     {
+        _logger.LogInformation("Publishing camera metadata profiles: {Profiles}", 
+            cameraEvent.Profiles != null ? string.Join(", ", cameraEvent.Profiles.Select(p => p.WebRtcUri?.ToString() ?? "null")) : "null");
         await PublishCameraEventAsync(cameraEvent, CameraEventRoutingKeys.MetadataUpdated, cancellationToken);
     }
 

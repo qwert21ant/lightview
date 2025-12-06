@@ -32,7 +32,7 @@ public class RabbitMQCameraEventConsumer : ICameraEventConsumer, IDisposable
     // Reconnection policy
     private int _reconnectAttempts;
     private readonly int _maxReconnectAttempts = 10;
-    private readonly TimeSpan _reconnectDelay = TimeSpan.FromSeconds(5);
+    private readonly TimeSpan _reconnectDelay = TimeSpan.FromSeconds(1);
     private DateTime _lastReconnectAttempt = DateTime.MinValue;
 
     // Events

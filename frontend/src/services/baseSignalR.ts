@@ -124,10 +124,6 @@ export abstract class BaseSignalRService {
     }
   }
 
-  public isConnected(): boolean {
-    return this.connection?.state === signalR.HubConnectionState.Connected;
-  }
-
   public getConnectionState(): signalR.HubConnectionState {
     return this.connection?.state ?? signalR.HubConnectionState.Disconnected;
   }

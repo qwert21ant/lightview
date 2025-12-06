@@ -42,6 +42,8 @@ const { isAuthenticated } = useAuth()
 
 // Create and provide CameraManager instance
 const cameraManager = new CameraManager()
+// @ts-ignore
+window.__cameraManager = cameraManager // For debugging
 provide(CAMERA_MANAGER_KEY, cameraManager)
 
 // Show main layout (sidebar + header) for authenticated users on protected routes
@@ -49,39 +51,65 @@ const showMainLayout = computed(() => {
   return isAuthenticated.value && route.meta.requiresAuth
 })
 
-// Auto-connect to camera hub when user is authenticated
+// Auto-connect and initialize camera manager when user is authenticated
 onMounted(() => {
   if (isAuthenticated.value) {
-    connectToHub()
+    initializeCameraManager()
   }
 })
 
 // Watch for authentication changes
 watch(isAuthenticated, (newValue) => {
   if (newValue) {
-    connectToHub()
+    initializeCameraManager()
   } else {
     disconnectFromHub()
   }
 })
 
-async function connectToHub() {
+async function initializeCameraManager() {
   try {
-    if (!cameraManager.isConnected()) {
-      console.log('Auto-connecting to Camera Hub...')
+    if (!cameraManager.isConnected.value) {
+      console.log('Initializing Camera Manager...')
+      
+      // Set up event handlers for camera updates
+      cameraManager.setEventHandlers({
+        onCameraAdded: (camera) => {
+          console.log('Camera added:', camera.name)
+        },
+        onCameraUpdated: (camera) => {
+          console.log('Camera updated:', camera.name)
+        },
+        onCameraDeleted: (cameraId) => {
+          console.log('Camera deleted:', cameraId)
+        },
+        onCameraConnected: (cameraId) => {
+          console.log('Camera connected:', cameraId)
+        },
+        onCameraDisconnected: (cameraId) => {
+          console.log('Camera disconnected:', cameraId)
+        },
+        onCameraEvent: (cameraId, eventType, data) => {
+          console.log(`Camera ${cameraId} event:`, eventType, data)
+        }
+      })
+      
+      // Connect to hub and load initial cameras
       await cameraManager.connect()
-      console.log('Successfully connected to Camera Hub')
+      console.log('Successfully initialized Camera Manager')
     }
   } catch (error) {
-    console.error('Failed to auto-connect to Camera Hub:', error)
+    console.error('Failed to initialize Camera Manager:', error)
   }
 }
 
 async function disconnectFromHub() {
   try {
-    if (cameraManager.isConnected()) {
+    if (cameraManager.isConnected.value) {
       console.log('Disconnecting from Camera Hub...')
       await cameraManager.disconnect()
+      // Clear cameras when disconnecting
+      cameraManager.cameras.value = []
       console.log('Successfully disconnected from Camera Hub')
     }
   } catch (error) {

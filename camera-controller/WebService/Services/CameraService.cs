@@ -52,7 +52,6 @@ public class CameraService : ICameraService, IDisposable
             
             // Subscribe to camera events
             SubscribeToCameraEvents(camera);
-            SubscribeToMonitoringEvents(monitoring);
 
             // Add to managed cameras
             _managedCameras[cameraConfig.Id] = monitoring;
@@ -298,36 +297,6 @@ public class CameraService : ICameraService, IDisposable
                 });
             };
         }
-    }
-
-    private void SubscribeToMonitoringEvents(ICameraMonitoring monitoring)
-    {
-        monitoring.HealthChanged += async (sender, args) =>
-        {
-            if (!args.CurrentHealth.IsHealthy && args.PreviousHealth.IsHealthy)
-            {
-                // Camera became unhealthy
-                await _eventPublisher.PublishCameraEventAsync(new CameraErrorEvent
-                {
-                    CameraId = monitoring.Camera.Id,
-                    ErrorCode = "HEALTH_CHECK_FAILED",
-                    ErrorMessage = string.Join(", ", args.CurrentHealth.Issues),
-                    Severity = ErrorSeverity.Warning,
-                    IsRecoverable = true
-                });
-            }
-            else if (args.CurrentHealth.IsHealthy && !args.PreviousHealth.IsHealthy)
-            {
-                // Camera became healthy again
-                await _eventPublisher.PublishCameraEventAsync(new CameraStatusChangedEvent
-                {
-                    CameraId = monitoring.Camera.Id,
-                    PreviousStatus = CameraStatus.Error,
-                    CurrentStatus = CameraStatus.Online,
-                    Reason = "Health check recovered"
-                });
-            }
-        };
     }
 
     /// <summary>

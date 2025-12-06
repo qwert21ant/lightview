@@ -205,10 +205,37 @@ const viewerClasses = computed(() => [
   'shadow-lg'
 ])
 
-const containerStyle = computed(() => ({
-  aspectRatio: props.aspectRatio,
-  width: '100%'
-}))
+const containerStyle = computed(() => {
+  const baseStyle = {
+    width: '100%',
+    minHeight: '300px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  }
+  
+  if (props.aspectRatio === 'unset') {
+    return {
+      ...baseStyle,
+      height: '100%'
+    }
+  }
+  
+  if (props.aspectRatio === 'responsive') {
+    return {
+      ...baseStyle,
+      height: 'calc(100vh - 8rem)',
+      maxHeight: 'calc(100vh - 8rem)',
+      flex: '1 1 auto'
+    }
+  }
+  
+  return {
+    ...baseStyle,
+    aspectRatio: props.aspectRatio,
+    maxHeight: 'calc(100vh - 12rem)'
+  }
+})
 
 const availableStreams = computed((): StreamOption[] => {
   if (!props.streamUrls) {
@@ -494,6 +521,30 @@ defineExpose({
 .video-container {
   position: relative;
   background-color: #000;
+  overflow: hidden;
+  min-height: 300px;
+}
+
+.video-container:empty {
+  height: 100%;
+  min-height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.video-container:empty::before {
+  content: 'Loading video...';
+  color: #9ca3af;
+  font-size: 1rem;
+}
+
+.video-container :deep(video) {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  min-height: 300px;
 }
 
 .actions-menu {

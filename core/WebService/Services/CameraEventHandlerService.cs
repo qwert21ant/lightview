@@ -161,6 +161,14 @@ public class CameraEventHandlerService : IDisposable
         {
             _logger.LogDebug("Processing camera metadata updated event: Camera {CameraId}, UpdateType: {UpdateType}", e.CameraId, e.UpdateType);
 
+            _logger.LogInformation("Payload: " +
+                "Profiles webrtc: {Profiles}, " +
+                "Capabilities: {Capabilities}, " +
+                "DeviceInfo: {DeviceInfo}",
+                e.Profiles != null ? string.Join(", ", e.Profiles.Select(p => p.WebRtcUri?.ToString() ?? "null")) : "null",
+                e.Capabilities != null ? string.Join(", ", e.Capabilities) : "null",
+                e.DeviceInfo != null ? e.DeviceInfo.Model : "null");
+
             // Update metadata in persistence based on what was updated
             await UpdateCameraPersistenceAsync(e.CameraId, camera => 
             {

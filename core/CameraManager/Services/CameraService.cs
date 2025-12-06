@@ -105,7 +105,7 @@ public class CameraService : ICameraService
     /// Update camera in persistence only, without calling camera-controller
     /// Used by event handlers to avoid circular updates
     /// </summary>
-    public async Task UpdateCameraPersistenceOnlyAsync(Guid id, Camera updatedCamera)
+    public async Task UpdateCameraPersistenceOnlyAsync(Guid id, SharedCamera updatedCamera)
     {
         var persistenceCamera = await _dbContext.Cameras.FindAsync(id);
         if (persistenceCamera == null)

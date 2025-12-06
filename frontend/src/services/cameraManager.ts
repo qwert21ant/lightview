@@ -1,4 +1,5 @@
-import { ref, reactive } from 'vue';
+import { ref, reactive, computed } from 'vue';
+import * as signalR from '@microsoft/signalr';
 import { BaseSignalRService } from './baseSignalR';
 import type { 
   Camera, 
@@ -23,21 +24,53 @@ import {
 export class CameraManager extends BaseSignalRService {
   protected hubPath = '/cameraHub';
 
+  // Event handlers
+  private eventHandlers = reactive<CameraEventHandlers>({});
+  
+  // Track initialization state
+  private _isInitialized = ref(false);
+  
   // Camera-specific reactive state
   public cameras = ref<Camera[]>([]);
 
-  // Event handlers
-  private eventHandlers = reactive<CameraEventHandlers>({});
+  // Reactive computed properties for easier component access
+  public readonly isInitialized = computed(() => this._isInitialized.value);
+  public readonly isConnected = computed(() => this.connectionState.value === signalR.HubConnectionState.Connected);
 
   // Override base class methods
   protected async onConnected(): Promise<void> {
-    // Load initial cameras after connection
-    await this.getAllCameras();
+    try {
+      // Load initial cameras after connection
+      console.log('CameraManager: Loading initial cameras...');
+      await this.getAllCameras();
+      this._isInitialized.value = true;
+      console.log(`CameraManager: Initialized with ${this.cameras.value.length} cameras`);
+    } catch (error) {
+      console.error('CameraManager: Failed to load initial cameras:', error);
+      this._isInitialized.value = false;
+      throw error;
+    }
   }
 
   protected onReconnected(): void {
     // Refresh cameras after reconnection
-    this.getAllCameras();
+    console.log('CameraManager: Reconnected, refreshing cameras...');
+    this.getAllCameras().then(() => {
+      this._isInitialized.value = true;
+      console.log(`CameraManager: Refreshed with ${this.cameras.value.length} cameras`);
+    }).catch(error => {
+      console.error('CameraManager: Failed to refresh cameras after reconnection:', error);
+      this._isInitialized.value = false;
+    });
+  }
+  
+  protected onClosed(error?: Error): void {
+    // Mark as not initialized when disconnected
+    this._isInitialized.value = false;
+    console.log('CameraManager: Connection closed, clearing state', error ? `(${error.message})` : '');
+    
+    // Call parent implementation
+    super.onClosed?.(error);
   }
 
   protected setupEventHandlers(): void {
@@ -203,12 +236,19 @@ export class CameraManager extends BaseSignalRService {
   async getAllCameras(): Promise<Camera[]> {
     try {
       const cameras = await this.invoke<Camera[]>('GetAllCameras');
-      this.cameras.value = cameras;
-      return cameras;
+      this.cameras.value = cameras || [];
+      console.log(`CameraManager: Loaded ${this.cameras.value.length} cameras`);
+      return this.cameras.value;
     } catch (error) {
       console.error('Failed to get all cameras:', error);
+      // Don't clear existing cameras on error, just re-throw
       throw error;
     }
+  }
+  
+  // Get camera from local state (no hub call)
+  getCameraById(cameraId: string): Camera | null {
+    return this.cameras.value.find(c => c.id === cameraId) || null;
   }
 
   async getCamera(cameraId: string): Promise<Camera | null> {

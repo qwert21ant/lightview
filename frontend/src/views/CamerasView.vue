@@ -85,7 +85,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { VideoCameraIcon, PlusIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
-import { HubConnectionState } from '@microsoft/signalr'
+
 import CameraTile from '@/components/CameraTile.vue'
 import AddCameraModal from '@/components/AddCameraModal.vue'
 import EditCameraModal from '@/components/EditCameraModal.vue'
@@ -96,7 +96,7 @@ import { CameraStatus } from '@/types/camera'
 const router = useRouter()
 const cameraManager = useCameraManager()
 
-// Reactive data
+// Reactive data - cameras come from the shared camera manager
 const cameras = computed(() => {
   if (!cameraManager.cameras.value) return []
   
@@ -125,27 +125,22 @@ const cameras = computed(() => {
     return a.name.localeCompare(b.name)
   })
 })
-const loading = ref(true)
+
+// Loading state based on camera manager initialization
+const loading = computed(() => {
+  return !cameraManager.isConnected.value || !cameraManager.isInitialized.value
+})
+
+// Connection status
+const isConnected = cameraManager.isConnected
+
 const showAddModal = ref(false)
 const showEditModal = ref(false)
 const selectedCamera = ref<Camera>({} as Camera)
 
-// Connection status
-const isConnected = computed(() => 
-  cameraManager.connectionState.value === HubConnectionState.Connected
-)
-
-onMounted(async () => {
-  try {
-    // Load cameras if connected
-    if (isConnected.value) {
-      await cameraManager?.getAllCameras()
-    }
-  } catch (error) {
-    console.error('Failed to load cameras:', error)
-  } finally {
-    loading.value = false
-  }
+onMounted(() => {
+  // Camera loading is now handled by the App.vue initialization
+  // This view just displays the shared camera state
 })
 
 // Camera actions

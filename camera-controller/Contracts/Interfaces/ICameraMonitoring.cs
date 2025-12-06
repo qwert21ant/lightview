@@ -30,11 +30,6 @@ public interface ICameraMonitoring : IDisposable
     CameraHealthStatus LastHealthStatus { get; }
     
     /// <summary>
-    /// Event raised when health status changes
-    /// </summary>
-    event EventHandler<CameraHealthChangedEventArgs> HealthChanged;
-    
-    /// <summary>
     /// Start monitoring the camera
     /// </summary>
     Task StartMonitoringAsync(CancellationToken cancellationToken = default);

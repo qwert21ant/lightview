@@ -30,8 +30,6 @@ public class RtspCameraMonitoring : ICameraMonitoring
     public DateTime LastHealthCheck { get; private set; }
     public CameraHealthStatus LastHealthStatus { get; private set; } = new();
 
-    public event EventHandler<CameraHealthChangedEventArgs>? HealthChanged;
-
     public RtspCameraMonitoring(
         ICamera camera, 
         CameraMonitoringConfig config, 
@@ -179,16 +177,6 @@ public class RtspCameraMonitoring : ICameraMonitoring
 
                     // Update camera status based on health check results
                     await UpdateCameraStatusBasedOnHealthAsync(LastHealthStatus);
-
-                    // Raise event if health status changed significantly
-                    if (previousHealth.IsHealthy != LastHealthStatus.IsHealthy)
-                    {
-                        HealthChanged?.Invoke(this, new CameraHealthChangedEventArgs
-                        {
-                            PreviousHealth = previousHealth,
-                            CurrentHealth = LastHealthStatus
-                        });
-                    }
                 }
                 catch (OperationCanceledException)
                 {

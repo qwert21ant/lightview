@@ -1,7 +1,7 @@
 <template>
-  <div class="live-view">
+  <div class="live-view" :class="{ 'fullscreen-mode': isFullscreen }">
     <!-- Loading State -->
-    <div v-if="loading" class="flex items-center justify-center h-screen bg-gray-900">
+    <div v-if="loading" class="flex items-center justify-center h-[calc(100vh-8rem)] bg-gray-900 rounded-lg">
       <div class="text-center">
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
         <p class="text-gray-400">Loading camera...</p>
@@ -9,7 +9,7 @@
     </div>
 
     <!-- Error State -->
-    <div v-else-if="error" class="flex items-center justify-center h-screen bg-gray-900">
+    <div v-else-if="error" class="flex items-center justify-center h-[calc(100vh-8rem)] bg-gray-900 rounded-lg">
       <div class="text-center">
         <div class="text-red-500 text-6xl mb-4">⚠️</div>
         <h2 class="text-xl font-semibold text-white mb-2">Camera Not Found</h2>
@@ -24,14 +24,14 @@
     </div>
 
     <!-- Camera Stream -->
-    <div v-else-if="camera" class="h-screen bg-black">
-      <!-- Full-screen Header -->
+    <div v-else-if="camera" class="bg-black rounded-lg overflow-hidden" :class="streamContainerClasses">
+      <!-- Stream Header -->
       <div class="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/70 to-transparent">
         <div class="flex items-center justify-between p-4">
           <!-- Camera Info -->
           <div class="flex items-center space-x-4">
             <button
-              @click="$router.back()"
+              @click="handleBackNavigation"
               class="text-white hover:text-gray-300 transition-colors"
               title="Go Back"
             >
@@ -99,6 +99,7 @@
         :show-video-controls="true"
         :show-stats="showStats"
         :auto-connect="true"
+        :aspect-ratio="isFullscreen ? 'unset' : 'responsive'"
         class="h-full"
         @connected="onStreamConnected"
         @disconnected="onStreamDisconnected"
@@ -108,7 +109,8 @@
       <!-- Settings Panel -->
       <div
         v-if="showSettings"
-        class="absolute top-0 right-0 w-80 h-full bg-black/90 backdrop-blur-sm border-l border-gray-700 z-20 overflow-y-auto"
+        class="absolute top-0 right-0 w-80 bg-black/90 backdrop-blur-sm border-l border-gray-700 z-20 overflow-y-auto"
+        :class="isFullscreen ? 'h-full' : 'max-h-[calc(100vh-8rem)]'"
       >
         <div class="p-4">
           <div class="flex items-center justify-between mb-4">
@@ -228,16 +230,21 @@ const cameraManager = useCameraManager()
 // Component state
 const loading = ref(true)
 const error = ref<string | null>(null)
-const camera = ref<Camera | null>(null)
 const selectedStreamProfile = ref<CameraProfile | null>(null)
 const showSettings = ref(false)
 const showStats = ref(false)
 const isFullscreen = ref(false)
 
+// Reactive camera that updates automatically when camera manager data changes
+const camera = computed(() => {
+  const cameraId = route.params.id as string
+  return cameraId ? cameraManager.getCameraById(cameraId) : null
+})
+
 // Computed properties
 const availableStreams = computed(() => {
   if (!camera.value?.profiles) return []
-  return camera.value.profiles.filter(profile => profile.webRtcUri)
+  return camera.value.profiles.filter((profile: CameraProfile) => profile.webRtcUri)
 })
 
 const statusColor = computed(() => {
@@ -257,8 +264,16 @@ const statusColor = computed(() => {
   }
 })
 
+const streamContainerClasses = computed(() => {
+  if (isFullscreen.value) {
+    return 'fullscreen-stream'
+  } else {
+    return 'relative h-[calc(100vh-8rem)] max-h-[calc(100vh-8rem)] flex flex-col'
+  }
+})
+
 // Methods
-const loadCamera = async () => {
+const loadCamera = () => {
   try {
     loading.value = true
     error.value = null
@@ -269,33 +284,24 @@ const loadCamera = async () => {
       return
     }
 
-    // Wait for camera manager to be connected
-    if (!cameraManager.isConnected()) {
-      await cameraManager.connect()
+    // Wait for camera manager to be connected and initialized
+    if (!cameraManager.isConnected.value || !cameraManager.isInitialized.value) {
+      error.value = 'Camera manager not ready. Please wait for initialization to complete.'
+      return
     }
 
-    // Find camera in the existing cameras array
-    const foundCamera = cameraManager.cameras.value.find(c => c.id === cameraId)
-    
-    if (!foundCamera) {
-      // Try to refresh cameras list
-      await cameraManager.getAllCameras()
-      const refreshedCamera = cameraManager.cameras.value.find(c => c.id === cameraId)
-      
-      if (!refreshedCamera) {
-        error.value = `Camera with ID "${cameraId}" not found`
-        return
-      }
-      
-      camera.value = refreshedCamera
-    } else {
-      camera.value = foundCamera
+    // Camera is now computed, so just check if it exists
+    if (!camera.value) {
+      error.value = `Camera with ID \"${cameraId}\" not found`
+      return
     }
 
     // Select the main stream by default, or first available stream
-    const mainStream = camera.value.profiles.find(p => p.isMainStream && p.webRtcUri)
-    const firstStream = camera.value.profiles.find(p => p.webRtcUri)
+    const mainStream = camera.value.profiles.find((p: CameraProfile) => p.isMainStream && p.webRtcUri)
+    const firstStream = camera.value.profiles.find((p: CameraProfile) => p.webRtcUri)
     selectedStreamProfile.value = mainStream || firstStream || null
+
+    error.value = null // Clear any previous errors
 
   } catch (err) {
     console.error('Failed to load camera:', err)
@@ -327,6 +333,15 @@ const getCameraProtocolText = (protocol: CameraProtocol): string => {
     case 0: return 'ONVIF'
     case 1: return 'RTSP'
     default: return 'Unknown'
+  }
+}
+
+const handleBackNavigation = () => {
+  if (isFullscreen.value) {
+    // Exit fullscreen instead of navigating back
+    document.exitFullscreen()
+  } else {
+    router.back()
   }
 }
 
@@ -363,7 +378,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
       } else if (isFullscreen.value) {
         document.exitFullscreen()
       } else {
-        router.back()
+        handleBackNavigation()
       }
       break
     case 'f':
@@ -399,11 +414,50 @@ watch(() => route.params.id, () => {
     loadCamera()
   }
 })
+
+// Watch for camera manager initialization
+watch(cameraManager.isInitialized, (initialized) => {
+  if (initialized && route.params.id) {
+    loadCamera()
+  }
+})
+
+// Watch for camera changes (reactive updates)
+watch(camera, (newCamera) => {
+  if (newCamera && newCamera.profiles) {
+    // Update stream profile when camera data changes
+    const mainStream = newCamera.profiles.find((p: CameraProfile) => p.isMainStream && p.webRtcUri)
+    const firstStream = newCamera.profiles.find((p: CameraProfile) => p.webRtcUri)
+    selectedStreamProfile.value = mainStream || firstStream || null
+  }
+}, { immediate: true })
 </script>
 
 <style scoped>
 .live-view {
-  @apply w-full h-screen overflow-hidden;
+  @apply w-full overflow-hidden flex flex-col;
+  min-height: calc(100vh - 8rem);
+  max-height: calc(100vh - 8rem);
+}
+
+.live-view.fullscreen-mode {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  background-color: black;
+}
+
+.fullscreen-stream {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  height: 100vh;
 }
 
 /* Smooth transitions for settings panel */
