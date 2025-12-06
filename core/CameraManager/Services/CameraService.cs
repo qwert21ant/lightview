@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Lightview.Shared.Contracts;
 using Lightview.Shared.Contracts.InternalApi;
 using SharedCamera = Lightview.Shared.Contracts.Camera;
+using System.Text.Json;
 
 namespace CameraManager.Services;
 
@@ -28,13 +29,21 @@ public class CameraService : ICameraService
 
     public async Task<List<SharedCamera>> GetAllCamerasAsync()
     {
-        var persistenceCameras = await _dbContext.Cameras.ToListAsync();
+        var persistenceCameras = await _dbContext.Cameras
+            .AsNoTracking()
+            .Include(c => c.Metadata)
+            .Include(c => c.Profiles)
+            .ToListAsync();
         return persistenceCameras.Select(c => c.ToSharedCamera()).ToList();
     }
 
     public async Task<SharedCamera?> GetCameraByIdAsync(Guid id)
     {
-        var persistenceCamera = await _dbContext.Cameras.FindAsync(id);
+        var persistenceCamera = await _dbContext.Cameras
+            .AsNoTracking()
+            .Include(c => c.Metadata)
+            .Include(c => c.Profiles)
+            .FirstOrDefaultAsync(c => c.Id == id);
         return persistenceCamera?.ToSharedCamera();
     }
 
@@ -70,13 +79,22 @@ public class CameraService : ICameraService
         return sharedCamera;
     }
 
-    public async Task<SharedCamera> UpdateCameraAsync(Guid id, SharedCamera updatedCamera)
+    public async Task<SharedCamera> UpdateCameraConfigAsync(Guid id, SharedCamera updatedCamera)
     {
-        var persistenceCamera = await _dbContext.Cameras.FindAsync(id);
+        var persistenceCamera = await _dbContext.Cameras
+            .Include(c => c.Metadata)
+            .Include(c => c.Profiles)
+            .FirstOrDefaultAsync(c => c.Id == id);
         if (persistenceCamera == null)
             throw new ArgumentException($"Camera with ID {id} not found");
 
-        persistenceCamera.UpdatePersistenceCamera(updatedCamera);
+        // Update only main camera table properties
+        persistenceCamera.Name = updatedCamera.Name;
+        persistenceCamera.Url = updatedCamera.Url.ToString();
+        persistenceCamera.Username = updatedCamera.Username;
+        persistenceCamera.Password = updatedCamera.Password;
+        persistenceCamera.Protocol = (int)updatedCamera.Protocol;
+        
         await _dbContext.SaveChangesAsync();
 
         // Update camera in camera-controller (create UpdateCameraRequest from SharedCamera)
@@ -91,37 +109,96 @@ public class CameraService : ICameraService
                 Protocol = updatedCamera.Protocol
             };
             await _cameraControllerClient.UpdateCameraAsync(id, updateRequest);
-            _logger.LogInformation("Camera {CameraId} updated in camera-controller", id);
+            _logger.LogInformation("Camera {CameraId} config updated in camera-controller", id);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to update camera {CameraId} in camera-controller", id);
+            _logger.LogError(ex, "Failed to update camera {CameraId} config in camera-controller", id);
         }
 
         return persistenceCamera.ToSharedCamera();
     }
 
     /// <summary>
-    /// Update camera in persistence only, without calling camera-controller
+    /// Update camera metadata only (status, capabilities, device info)
     /// Used by event handlers to avoid circular updates
     /// </summary>
-    public async Task UpdateCameraPersistenceOnlyAsync(Guid id, SharedCamera updatedCamera)
+    public async Task UpdateCameraMetadataAsync(Guid id, CameraStatus? status = null, 
+        CameraCapabilities? capabilities = null, CameraDeviceInfo? deviceInfo = null, DateTime? lastConnectedAt = null)
     {
-        var persistenceCamera = await _dbContext.Cameras.FindAsync(id);
-        if (persistenceCamera == null)
+        var camera = await _dbContext.Cameras
+            .Include(c => c.Metadata)
+            .FirstOrDefaultAsync(c => c.Id == id);
+        
+        if (camera == null)
         {
-            _logger.LogWarning("Camera {CameraId} not found in persistence for update", id);
+            _logger.LogWarning("Camera {CameraId} not found for metadata update", id);
             return;
         }
 
-        persistenceCamera.UpdatePersistenceCamera(updatedCamera);
+        // Create metadata if it doesn't exist
+        if (camera.Metadata == null)
+        {
+            camera.Metadata = new Persistence.Models.CameraMetadata
+            {
+                CameraId = id,
+                Status = (int)CameraStatus.Offline,
+                LastConnectedAt = DateTime.MinValue
+            };
+        }
+
+        // Update provided fields
+        if (status.HasValue)
+            camera.Metadata.Status = (int)status.Value;
+        
+        if (lastConnectedAt.HasValue)
+            camera.Metadata.LastConnectedAt = lastConnectedAt.Value;
+            
+        if (capabilities != null)
+            camera.Metadata.CapabilitiesJson = JsonSerializer.Serialize(capabilities);
+            
+        if (deviceInfo != null)
+            camera.Metadata.DeviceInfoJson = JsonSerializer.Serialize(deviceInfo);
+
         await _dbContext.SaveChangesAsync();
-        _logger.LogDebug("Camera {CameraId} updated in persistence only", id);
+        _logger.LogDebug("Camera {CameraId} metadata updated", id);
+    }
+
+    /// <summary>
+    /// Update camera profiles (replace existing profiles with new ones)
+    /// Used by event handlers when profile information is updated
+    /// </summary>
+    public async Task UpdateCameraProfilesAsync(Guid id, List<CameraProfile> profiles)
+    {
+        var camera = await _dbContext.Cameras
+            .Include(c => c.Profiles)
+            .FirstOrDefaultAsync(c => c.Id == id);
+            
+        if (camera == null)
+        {
+            _logger.LogWarning("Camera {CameraId} not found for profiles update", id);
+            return;
+        }
+
+        // Remove existing profiles from database context
+        _dbContext.CameraProfiles.RemoveRange(camera.Profiles);
+
+        // Add new profiles
+        foreach (var profile in profiles)
+        {
+            _dbContext.CameraProfiles.Add(profile.ToPersistenceProfile(id));
+        }
+
+        await _dbContext.SaveChangesAsync();
+        _logger.LogDebug("Camera {CameraId} profiles updated with {ProfileCount} profiles", id, profiles.Count);
     }
 
     public async Task<bool> DeleteCameraAsync(Guid id)
     {
-        var camera = await _dbContext.Cameras.FindAsync(id);
+        var camera = await _dbContext.Cameras
+            .Include(c => c.Metadata)
+            .Include(c => c.Profiles)
+            .FirstOrDefaultAsync(c => c.Id == id);
         if (camera == null)
             return false;
 
@@ -164,10 +241,20 @@ public class CameraService : ICameraService
             // Update LastConnectedAt if successful
             if (result)
             {
-                var camera = await _dbContext.Cameras.FindAsync(id);
+                var camera = await _dbContext.Cameras
+                    .Include(c => c.Metadata)
+                    .FirstOrDefaultAsync(c => c.Id == id);
                 if (camera != null)
                 {
-                    camera.LastConnectedAt = DateTime.UtcNow;
+                    if (camera.Metadata == null)
+                    {
+                        camera.Metadata = new Persistence.Models.CameraMetadata
+                        {
+                            CameraId = camera.Id,
+                            Status = (int)CameraStatus.Offline
+                        };
+                    }
+                    camera.Metadata.LastConnectedAt = DateTime.UtcNow;
                     await _dbContext.SaveChangesAsync();
                 }
             }

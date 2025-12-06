@@ -56,25 +56,25 @@ public interface ICameraEventConsumer
     /// <summary>
     /// Event fired when a camera status changed event is received
     /// </summary>
-    event EventHandler<CameraStatusChangedEvent>? CameraStatusChanged;
+    event Func<CameraStatusChangedEvent, Task>? CameraStatusChanged;
     
     /// <summary>
     /// Event fired when a camera error event is received
     /// </summary>
-    event EventHandler<CameraErrorEvent>? CameraError;
+    event Func<CameraErrorEvent, Task>? CameraError;
     
     /// <summary>
     /// Event fired when a PTZ moved event is received
     /// </summary>
-    event EventHandler<PtzMovedEvent>? PtzMoved;
+    event Func<PtzMovedEvent, Task>? PtzMoved;
     
     /// <summary>
     /// Event fired when camera statistics event is received
     /// </summary>
-    event EventHandler<CameraStatisticsEvent>? CameraStatistics;
+    event Func<CameraStatisticsEvent, Task>? CameraStatistics;
     
     /// <summary>
     /// Event fired when camera metadata is updated
     /// </summary>
-    event EventHandler<CameraMetadataUpdatedEvent>? CameraMetadataUpdated;
+    event Func<CameraMetadataUpdatedEvent, Task>? CameraMetadataUpdated;
 }

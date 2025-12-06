@@ -8,8 +8,10 @@ public interface ICameraService
     Task<List<Camera>> GetAllCamerasAsync();
     Task<Camera?> GetCameraByIdAsync(Guid id);
     Task<Camera> AddCameraAsync(AddCameraRequest request);
-    Task<Camera> UpdateCameraAsync(Guid id, Camera camera);
-    Task UpdateCameraPersistenceOnlyAsync(Guid id, Camera camera);
+    Task<Camera> UpdateCameraConfigAsync(Guid id, Camera camera);
+    Task UpdateCameraMetadataAsync(Guid id, CameraStatus? status = null, 
+        CameraCapabilities? capabilities = null, CameraDeviceInfo? deviceInfo = null, DateTime? lastConnectedAt = null);
+    Task UpdateCameraProfilesAsync(Guid id, List<CameraProfile> profiles);
     Task<bool> DeleteCameraAsync(Guid id);
     Task<CameraStatusResponse?> GetCameraStatusAsync(Guid id);
     Task<bool> ConnectCameraAsync(Guid id);

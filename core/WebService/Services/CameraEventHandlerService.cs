@@ -10,7 +10,7 @@ namespace WebService.Services;
 
 /// <summary>
 /// Service that processes RabbitMQ camera events and forwards them to SignalR clients with unified "CameraChanged" notifications
-/// and updates camera status in persistence
+/// and updates camera status in persistence. Sequential processing is handled by separate RabbitMQ queues.
 /// </summary>
 public class CameraEventHandlerService : IDisposable
 {
@@ -31,17 +31,18 @@ public class CameraEventHandlerService : IDisposable
         _hubContext = hubContext;
         _logger = logger;
 
-        // Subscribe to all camera events
-        _eventConsumer.CameraStatusChanged += OnCameraStatusChanged;
-        _eventConsumer.CameraError += OnCameraError;
-        _eventConsumer.PtzMoved += OnPtzMoved;
-        _eventConsumer.CameraStatistics += OnCameraStatistics;
-        _eventConsumer.CameraMetadataUpdated += OnCameraMetadataUpdated;
+        // Subscribe to all camera events with async handlers
+        _eventConsumer.CameraStatusChanged += OnCameraStatusChangedAsync;
+        _eventConsumer.CameraError += OnCameraErrorAsync;
+        _eventConsumer.PtzMoved += OnPtzMovedAsync;
+        _eventConsumer.CameraStatistics += OnCameraStatisticsAsync;
+        _eventConsumer.CameraMetadataUpdated += OnCameraMetadataUpdatedAsync;
 
-        _logger.LogInformation("Camera event handler service initialized");
+        _logger.LogInformation("Camera event handler service initialized with async processing");
     }
 
-    private async void OnCameraStatusChanged(object? sender, CameraStatusChangedEvent e)
+    // Async event handlers - sequential processing is guaranteed by separate RabbitMQ queues with prefetch=1
+    private async Task OnCameraStatusChangedAsync(CameraStatusChangedEvent e)
     {
         try
         {
@@ -49,10 +50,9 @@ public class CameraEventHandlerService : IDisposable
                 e.CameraId, e.PreviousStatus, e.CurrentStatus);
 
             // Update camera status in persistence only (don't update camera-controller as it's the source)
-            await UpdateCameraPersistenceAsync(e.CameraId, camera => 
-            {
-                camera.Status = e.CurrentStatus;
-            });
+            using var scope = _serviceScopeFactory.CreateScope();
+            var cameraService = scope.ServiceProvider.GetRequiredService<ICameraService>();
+            await cameraService.UpdateCameraMetadataAsync(e.CameraId, status: e.CurrentStatus);
 
             // Forward to SignalR clients
             await _hubContext.Clients.All.SendAsync("CameraChanged", new CameraChangedNotification
@@ -71,10 +71,11 @@ public class CameraEventHandlerService : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing camera status changed event for camera {CameraId}", e.CameraId);
+            throw; // Re-throw to trigger message retry via RabbitMQ
         }
     }
 
-    private async void OnCameraError(object? sender, CameraErrorEvent e)
+    private async Task OnCameraErrorAsync(CameraErrorEvent e)
     {
         try
         {
@@ -100,10 +101,11 @@ public class CameraEventHandlerService : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing camera error event for camera {CameraId}", e.CameraId);
+            throw; // Re-throw to trigger message retry via RabbitMQ
         }
     }
 
-    private async void OnPtzMoved(object? sender, PtzMovedEvent e)
+    private async Task OnPtzMovedAsync(PtzMovedEvent e)
     {
         try
         {
@@ -125,10 +127,11 @@ public class CameraEventHandlerService : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error forwarding PTZ moved event for camera {CameraId}", e.CameraId);
+            throw; // Re-throw to trigger message retry via RabbitMQ
         }
     }
 
-    private async void OnCameraStatistics(object? sender, CameraStatisticsEvent e)
+    private async Task OnCameraStatisticsAsync(CameraStatisticsEvent e)
     {
         try
         {
@@ -152,10 +155,11 @@ public class CameraEventHandlerService : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error forwarding camera statistics event for camera {CameraId}", e.CameraId);
+            throw; // Re-throw to trigger message retry via RabbitMQ
         }
     }
 
-    private async void OnCameraMetadataUpdated(object? sender, CameraMetadataUpdatedEvent e)
+    private async Task OnCameraMetadataUpdatedAsync(CameraMetadataUpdatedEvent e)
     {
         try
         {
@@ -170,21 +174,19 @@ public class CameraEventHandlerService : IDisposable
                 e.DeviceInfo != null ? e.DeviceInfo.Model : "null");
 
             // Update metadata in persistence based on what was updated
-            await UpdateCameraPersistenceAsync(e.CameraId, camera => 
+            using var scope = _serviceScopeFactory.CreateScope();
+            var cameraService = scope.ServiceProvider.GetRequiredService<ICameraService>();
+            
+            if ((e.UpdateType & CameraMetadataUpdateType.Profiles) != 0 && e.Profiles != null)
             {
-                if ((e.UpdateType & CameraMetadataUpdateType.Profiles) != 0 && e.Profiles != null)
-                {
-                    camera.Profiles = e.Profiles;
-                }
-                if ((e.UpdateType & CameraMetadataUpdateType.Capabilities) != 0 && e.Capabilities != null)
-                {
-                    camera.Capabilities = e.Capabilities;
-                }
-                if ((e.UpdateType & CameraMetadataUpdateType.DeviceInfo) != 0 && e.DeviceInfo != null)
-                {
-                    camera.DeviceInfo = e.DeviceInfo;
-                }
-            });
+                await cameraService.UpdateCameraProfilesAsync(e.CameraId, e.Profiles);
+            }
+            if ((e.UpdateType & (CameraMetadataUpdateType.Capabilities | CameraMetadataUpdateType.DeviceInfo)) != 0)
+            {
+                await cameraService.UpdateCameraMetadataAsync(e.CameraId, 
+                    capabilities: (e.UpdateType & CameraMetadataUpdateType.Capabilities) != 0 ? e.Capabilities : null,
+                    deviceInfo: (e.UpdateType & CameraMetadataUpdateType.DeviceInfo) != 0 ? e.DeviceInfo : null);
+            }
 
             // Forward to SignalR clients
             await _hubContext.Clients.All.SendAsync("CameraChanged", new CameraChangedNotification
@@ -204,34 +206,7 @@ public class CameraEventHandlerService : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing camera metadata updated event for camera {CameraId}", e.CameraId);
-        }
-    }
-
-    /// <summary>
-    /// Helper method to update camera in persistence without triggering camera-controller updates
-    /// </summary>
-    private async Task UpdateCameraPersistenceAsync(Guid cameraId, Action<Camera> updateAction)
-    {
-        try
-        {
-            using var scope = _serviceScopeFactory.CreateScope();
-            var cameraService = scope.ServiceProvider.GetRequiredService<ICameraService>();
-            
-            var camera = await cameraService.GetCameraByIdAsync(cameraId);
-            if (camera != null)
-            {
-                updateAction(camera);
-                await cameraService.UpdateCameraPersistenceOnlyAsync(cameraId, camera);
-                _logger.LogDebug("Updated camera {CameraId} in persistence only", cameraId);
-            }
-            else
-            {
-                _logger.LogWarning("Camera {CameraId} not found in persistence for update", cameraId);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error updating camera {CameraId} in persistence", cameraId);
+            throw; // Re-throw to trigger message retry via RabbitMQ
         }
     }
 
@@ -243,11 +218,11 @@ public class CameraEventHandlerService : IDisposable
         try
         {
             // Unsubscribe from events
-            _eventConsumer.CameraStatusChanged -= OnCameraStatusChanged;
-            _eventConsumer.CameraError -= OnCameraError;
-            _eventConsumer.PtzMoved -= OnPtzMoved;
-            _eventConsumer.CameraStatistics -= OnCameraStatistics;
-            _eventConsumer.CameraMetadataUpdated -= OnCameraMetadataUpdated;
+            _eventConsumer.CameraStatusChanged -= OnCameraStatusChangedAsync;
+            _eventConsumer.CameraError -= OnCameraErrorAsync;
+            _eventConsumer.PtzMoved -= OnPtzMovedAsync;
+            _eventConsumer.CameraStatistics -= OnCameraStatisticsAsync;
+            _eventConsumer.CameraMetadataUpdated -= OnCameraMetadataUpdatedAsync;
 
             _logger.LogInformation("Camera event handler service disposed");
         }

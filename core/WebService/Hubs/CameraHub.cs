@@ -97,7 +97,7 @@ public class CameraHub : Hub
             }
 
             _logger.LogInformation("UpdateCamera called for {CameraId} by {ConnectionId}", cameraId, Context.ConnectionId);
-            var updatedCamera = await _cameraService.UpdateCameraAsync(id, camera);
+            var updatedCamera = await _cameraService.UpdateCameraConfigAsync(id, camera);
             
             // Notify all clients about camera update
             await Clients.All.SendAsync("CameraUpdated", updatedCamera);

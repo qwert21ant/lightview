@@ -21,7 +21,6 @@ public class RabbitMQCameraEventConsumer : ICameraEventConsumer, IDisposable
     
     private IConnection? _connection;
     private IModel? _channel;
-    private EventingBasicConsumer? _consumer;
     private string? _consumerTag;
     
     private readonly object _connectionLock = new();
@@ -35,12 +34,12 @@ public class RabbitMQCameraEventConsumer : ICameraEventConsumer, IDisposable
     private readonly TimeSpan _reconnectDelay = TimeSpan.FromSeconds(1);
     private DateTime _lastReconnectAttempt = DateTime.MinValue;
 
-    // Events
-    public event EventHandler<CameraStatusChangedEvent>? CameraStatusChanged;
-    public event EventHandler<CameraErrorEvent>? CameraError;
-    public event EventHandler<PtzMovedEvent>? PtzMoved;
-    public event EventHandler<CameraStatisticsEvent>? CameraStatistics;
-    public event EventHandler<CameraMetadataUpdatedEvent>? CameraMetadataUpdated;
+    // Events - using Func<T, Task> for async event handlers
+    public event Func<CameraStatusChangedEvent, Task>? CameraStatusChanged;
+    public event Func<CameraErrorEvent, Task>? CameraError;
+    public event Func<PtzMovedEvent, Task>? PtzMoved;
+    public event Func<CameraStatisticsEvent, Task>? CameraStatistics;
+    public event Func<CameraMetadataUpdatedEvent, Task>? CameraMetadataUpdated;
 
     public RabbitMQCameraEventConsumer(
         ILogger<RabbitMQCameraEventConsumer> logger,
@@ -86,7 +85,7 @@ public class RabbitMQCameraEventConsumer : ICameraEventConsumer, IDisposable
                     return;
                 }
 
-                // Declare queue with binding to exchange
+                // Declare single queue with binding to exchange
                 _channel.QueueDeclare(
                     queue: _config.CoreQueueName,
                     durable: true,
@@ -100,17 +99,19 @@ public class RabbitMQCameraEventConsumer : ICameraEventConsumer, IDisposable
                     routingKey: _config.CoreRoutingKey
                 );
 
-                // Set up consumer
-                _consumer = new EventingBasicConsumer(_channel);
-                _consumer.Received += OnMessageReceived;
-                _consumer.ConsumerCancelled += OnConsumerCancelled;
-                _consumer.Shutdown += OnConsumerShutdown;
+                // Set prefetch count of 1 for sequential processing
+                _channel.BasicQos(prefetchSize: 0, prefetchCount: 1, global: false);
+
+                var consumer = new AsyncEventingBasicConsumer(_channel);
+                consumer.Received += OnMessageReceivedAsync;
+                consumer.ConsumerCancelled += async (sender, e) => { OnConsumerCancelled(sender, e); await Task.CompletedTask; };
+                consumer.Shutdown += async (sender, e) => { OnConsumerShutdown(sender, e); await Task.CompletedTask; };
 
                 // Start consuming
                 _consumerTag = _channel.BasicConsume(
                     queue: _config.CoreQueueName,
                     autoAck: false, // Manual acknowledgment for reliability
-                    consumer: _consumer
+                    consumer: consumer
                 );
 
                 _isConsuming = true;
@@ -188,7 +189,8 @@ public class RabbitMQCameraEventConsumer : ICameraEventConsumer, IDisposable
                         RequestedConnectionTimeout = TimeSpan.FromMilliseconds(_config.ConnectionTimeoutMs),
                         NetworkRecoveryInterval = TimeSpan.FromMilliseconds(_config.NetworkRecoveryInterval),
                         AutomaticRecoveryEnabled = _config.AutomaticRecoveryEnabled,
-                        RequestedHeartbeat = TimeSpan.FromSeconds(_config.RequestedHeartbeat)
+                        RequestedHeartbeat = TimeSpan.FromSeconds(_config.RequestedHeartbeat),
+                        DispatchConsumersAsync = true
                     };
 
                     _connection = factory.CreateConnection("CoreEventConsumer");
@@ -272,7 +274,7 @@ public class RabbitMQCameraEventConsumer : ICameraEventConsumer, IDisposable
         }
     }
 
-    private void OnMessageReceived(object? sender, BasicDeliverEventArgs e)
+    private async Task OnMessageReceivedAsync(object? sender, BasicDeliverEventArgs e)
     {
         try
         {
@@ -281,27 +283,18 @@ public class RabbitMQCameraEventConsumer : ICameraEventConsumer, IDisposable
 
             _logger.LogDebug("Received camera event: {EventType}", eventType);
 
-            // Deserialize and handle based on event type
-            var handled = eventType switch
-            {
-                nameof(CameraStatusChangedEvent) => HandleEvent<CameraStatusChangedEvent>(json, evt => CameraStatusChanged?.Invoke(this, evt)),
-                nameof(CameraErrorEvent) => HandleEvent<CameraErrorEvent>(json, evt => CameraError?.Invoke(this, evt)),
-                nameof(PtzMovedEvent) => HandleEvent<PtzMovedEvent>(json, evt => PtzMoved?.Invoke(this, evt)),
-                nameof(CameraStatisticsEvent) => HandleEvent<CameraStatisticsEvent>(json, evt => CameraStatistics?.Invoke(this, evt)),
-                nameof(CameraMetadataUpdatedEvent) => HandleEvent<CameraMetadataUpdatedEvent>(json, evt => CameraMetadataUpdated?.Invoke(this, evt)),
-                _ => false
-            };
+            // Process the event based on type from message properties
+            var handled = await HandleEventAsync(json, eventType);
 
             if (handled)
             {
-                // Acknowledge message
+                // Acknowledge message only after successful processing
                 AcknowledgeMessage(e.DeliveryTag, true);
             }
             else
             {
                 _logger.LogWarning("Unknown event type: {EventType}", eventType);
-                
-                // Reject unknown message types
+                // Reject unknown message types without requeue
                 AcknowledgeMessage(e.DeliveryTag, false);
             }
         }
@@ -314,14 +307,39 @@ public class RabbitMQCameraEventConsumer : ICameraEventConsumer, IDisposable
         }
     }
 
-    private bool HandleEvent<T>(string json, Action<T> handler) where T : CameraEventBase
+    private async Task<bool> HandleEventAsync(string json, string eventType)
+    {
+        try
+        {
+            return eventType switch
+            {
+                nameof(CameraStatusChangedEvent) => await HandleEventAsync(json, CameraStatusChanged),
+                nameof(CameraErrorEvent) => await HandleEventAsync(json, CameraError),
+                nameof(PtzMovedEvent) => await HandleEventAsync(json, PtzMoved),
+                nameof(CameraStatisticsEvent) => await HandleEventAsync(json, CameraStatistics),
+                nameof(CameraMetadataUpdatedEvent) => await HandleEventAsync(json, CameraMetadataUpdated),
+                _ => false
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in event handler for type {EventType}", eventType);
+            return false;
+        }
+    }
+
+    private async Task<bool> HandleEventAsync<T>(string json, Func<T, Task?>? handler) where T : CameraEventBase
     {
         try
         {
             var eventData = JsonSerializer.Deserialize<T>(json, _jsonOptions);
-            if (eventData != null)
+            if (eventData != null && handler != null)
             {
-                handler(eventData);
+                var task = handler(eventData);
+                if (task != null)
+                {
+                    await task;
+                }
                 return true;
             }
         }

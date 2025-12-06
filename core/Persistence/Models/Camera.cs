@@ -13,17 +13,9 @@ public class Camera
     public string Username { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
     public int Protocol { get; set; } = (int)CameraProtocol.Onvif;
-    public int Status { get; set; } = (int)CameraStatus.Offline;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime LastConnectedAt { get; set; }
     
-    // JSON columns for complex types
-    [Column(TypeName = "jsonb")]
-    public string? CapabilitiesJson { get; set; }
-    
-    [Column(TypeName = "jsonb")]
-    public string? ProfilesJson { get; set; }
-    
-    [Column(TypeName = "jsonb")]
-    public string? DeviceInfoJson { get; set; }
+    // Navigation properties
+    public CameraMetadata? Metadata { get; set; }
+    public ICollection<CameraProfile> Profiles { get; set; } = new List<CameraProfile>();
 }

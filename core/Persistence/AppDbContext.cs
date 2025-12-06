@@ -8,6 +8,8 @@ public class AppDbContext : DbContext
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
     public DbSet<Camera> Cameras => Set<Camera>();
+    public DbSet<CameraMetadata> CameraMetadata => Set<CameraMetadata>();
+    public DbSet<CameraProfile> CameraProfiles => Set<CameraProfile>();
     public DbSet<User> Users => Set<User>();
     // Add other DbSets as needed
 
@@ -24,21 +26,62 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Username).HasMaxLength(100);
             entity.Property(e => e.Password).HasMaxLength(100);
             entity.Property(e => e.Protocol).IsRequired();
-            entity.Property(e => e.Status).IsRequired().HasDefaultValue(0); // Default to Offline
             entity.Property(e => e.CreatedAt).IsRequired();
+            
+            // Configure relationships
+            entity.HasOne(e => e.Metadata)
+                .WithOne(m => m.Camera)
+                .HasForeignKey<CameraMetadata>(m => m.CameraId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasMany(e => e.Profiles)
+                .WithOne(p => p.Camera)
+                .HasForeignKey(p => p.CameraId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        
+        // Configure CameraMetadata entity
+        modelBuilder.Entity<CameraMetadata>(entity =>
+        {
+            entity.HasKey(e => e.CameraId);
+            entity.Property(e => e.Status).IsRequired().HasDefaultValue(0); // Default to Offline
+            entity.Property(e => e.LastConnectedAt).IsRequired();
             
             // Configure JSON columns for PostgreSQL
             entity.Property(e => e.CapabilitiesJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("capabilities");
                 
-            entity.Property(e => e.ProfilesJson)
-                .HasColumnType("jsonb")
-                .HasColumnName("profiles");
-                
             entity.Property(e => e.DeviceInfoJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("device_info");
+        });
+        
+        // Configure CameraProfile entity
+        modelBuilder.Entity<CameraProfile>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.CameraId).IsRequired();
+            entity.Property(e => e.Token).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.IsMainStream).IsRequired();
+            entity.Property(e => e.RtspUri).HasMaxLength(500);
+            entity.Property(e => e.WebRtcUri).HasMaxLength(500);
+            
+            // Configure JSON columns for PostgreSQL
+            entity.Property(e => e.VideoConfigJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("video_config")
+                .HasDefaultValue("{}");
+                
+            entity.Property(e => e.AudioConfigJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("audio_config")
+                .HasDefaultValue("{}");
+                
+            // Create index on CameraId for performance
+            entity.HasIndex(e => e.CameraId);
+            entity.HasIndex(e => new { e.CameraId, e.Token }).IsUnique();
         });
         
         // Configure User entity
