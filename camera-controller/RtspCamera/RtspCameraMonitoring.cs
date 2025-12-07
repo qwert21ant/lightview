@@ -22,13 +22,20 @@ public class RtspCameraMonitoring : ICameraMonitoring
     // Health monitoring state
     private int _consecutiveFailures = 0;
     private readonly int _maxConsecutiveFailures = 3; // Number of failures before marking as degraded
-    private CameraStatus _lastKnownStatus;
+    
+    // Snapshot capture state
+    private DateTime _lastSnapshotCapture = DateTime.MinValue;
+    private byte[]? _latestSnapshotData;
+    private DateTime? _latestSnapshotTimestamp;
+    private string? _latestSnapshotProfileToken;
+    private readonly object _snapshotLock = new();
 
     public ICamera Camera => _camera;
     public CameraMonitoringConfig Config => _config;
     public bool IsMonitoring => _isMonitoring;
     public DateTime LastHealthCheck { get; private set; }
     public CameraHealthStatus LastHealthStatus { get; private set; } = new();
+    public event EventHandler<CameraSnapshotCapturedEventArgs>? SnapshotCaptured;
 
     public RtspCameraMonitoring(
         ICamera camera, 
@@ -38,7 +45,17 @@ public class RtspCameraMonitoring : ICameraMonitoring
         _camera = camera ?? throw new ArgumentNullException(nameof(camera));
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _logger = logger;
-        _lastKnownStatus = _camera.Status;
+    }
+
+    /// <summary>
+    /// Get the latest captured snapshot data
+    /// </summary>
+    public (byte[]? Data, DateTime? Timestamp, string? ProfileToken) GetLatestSnapshot()
+    {
+        lock (_snapshotLock)
+        {
+            return (_latestSnapshotData, _latestSnapshotTimestamp, _latestSnapshotProfileToken);
+        }
     }
 
     public async Task StartMonitoringAsync(CancellationToken cancellationToken = default)
@@ -177,6 +194,9 @@ public class RtspCameraMonitoring : ICameraMonitoring
 
                     // Update camera status based on health check results
                     await UpdateCameraStatusBasedOnHealthAsync(LastHealthStatus);
+                    
+                    // Check if we need to capture a snapshot
+                    await TryCaptureSnapshotAsync(cancellationToken);
                 }
                 catch (OperationCanceledException)
                 {
@@ -257,6 +277,65 @@ public class RtspCameraMonitoring : ICameraMonitoring
         }
         
         await Task.CompletedTask;
+    }
+    
+    private async Task TryCaptureSnapshotAsync(CancellationToken cancellationToken)
+    {
+        try
+        {                
+            // Check if it's time for the next snapshot
+            var timeSinceLastSnapshot = DateTime.UtcNow - _lastSnapshotCapture;
+            if (timeSinceLastSnapshot < _config.SnapshotInterval)
+                return;
+                
+            // Only capture snapshots if camera is online
+            if (_camera.Status != CameraStatus.Online)
+            {
+                _logger?.LogDebug("Skipping snapshot capture for camera {CameraId} - status is {Status}", 
+                    _camera.Id, _camera.Status);
+                return;
+            }
+
+            _logger?.LogDebug("Capturing scheduled snapshot for camera {CameraId}", _camera.Id);
+            
+            var captureStartTime = DateTime.UtcNow;
+            var snapshotBytes = await _camera.CaptureSnapshotAsync(_config.SnapshotProfileToken, cancellationToken);
+            var captureTime = DateTime.UtcNow - captureStartTime;
+            
+            if (snapshotBytes != null && snapshotBytes.Length > 0)
+            {
+                var captureTimestamp = DateTime.UtcNow;
+                _lastSnapshotCapture = captureTimestamp;
+                
+                // Store the latest snapshot
+                lock (_snapshotLock)
+                {
+                    _latestSnapshotData = snapshotBytes;
+                    _latestSnapshotTimestamp = captureTimestamp;
+                    _latestSnapshotProfileToken = _config.SnapshotProfileToken;
+                }
+                
+                _logger?.LogInformation("Snapshot captured for camera {CameraId}: {ImageSize} bytes, capture took {CaptureTime}ms", 
+                    _camera.Id, snapshotBytes.Length, captureTime.TotalMilliseconds);
+                
+                // Raise C# event with snapshot data
+                SnapshotCaptured?.Invoke(this, new CameraSnapshotCapturedEventArgs
+                {
+                    CameraId = _camera.Id,
+                    SnapshotData = snapshotBytes,
+                    ProfileToken = _config.SnapshotProfileToken,
+                    CaptureTime = captureTime
+                });
+            }
+            else
+            {
+                _logger?.LogWarning("Failed to capture snapshot for camera {CameraId} - returned null or empty", _camera.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error capturing scheduled snapshot for camera {CameraId}", _camera.Id);
+        }
     }
 
     public void UpdateConfig(CameraMonitoringConfig config)

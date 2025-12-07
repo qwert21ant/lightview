@@ -68,8 +68,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import {
   HomeIcon,
   VideoCameraIcon,
-  Cog6ToothIcon,
-  ChartBarIcon
+  Cog6ToothIcon
 } from '@heroicons/vue/24/outline'
 import { HubConnectionState } from '@microsoft/signalr'
 import { useCameraManager } from '@/composables/useCamera'
@@ -80,7 +79,6 @@ const cameraManager = useCameraManager()
 const navigation = [
   { name: 'Dashboard', to: '/', icon: HomeIcon },
   { name: 'Cameras', to: '/cameras', icon: VideoCameraIcon },
-  { name: 'Analytics', to: '/analytics', icon: ChartBarIcon },
   { name: 'Settings', to: '/settings', icon: Cog6ToothIcon }
 ]
 

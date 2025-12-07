@@ -262,7 +262,7 @@ public class CameraControllerClient : ICameraControllerClient
                 url += $"?profileToken={Uri.EscapeDataString(profileToken)}";
             }
 
-            var response = await _httpClient.GetAsync(url, cancellationToken);
+            var response = await _httpClient.PostAsync(url, null, cancellationToken);
             
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
@@ -275,6 +275,50 @@ public class CameraControllerClient : ICameraControllerClient
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error capturing snapshot from camera {CameraId}", cameraId);
+            throw;
+        }
+    }
+
+    public async Task<(byte[]? ImageData, DateTime? CapturedAt, string? ProfileToken)> GetLatestSnapshotAsync(Guid cameraId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogDebug("Getting latest snapshot from camera {CameraId}", cameraId);
+            
+            var url = $"/api/cameras/{cameraId}/snapshot/latest";
+            var response = await _httpClient.GetAsync(url, cancellationToken);
+            
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return (null, null, null);
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            // Extract metadata from headers
+            DateTime? capturedAt = null;
+            string? profileToken = null;
+
+            if (response.Headers.TryGetValues("X-Snapshot-Timestamp", out var timestampValues))
+            {
+                var timestampStr = timestampValues.FirstOrDefault();
+                if (!string.IsNullOrEmpty(timestampStr) && DateTime.TryParse(timestampStr, out var timestamp))
+                {
+                    capturedAt = timestamp;
+                }
+            }
+
+            if (response.Headers.TryGetValues("X-Profile-Token", out var tokenValues))
+            {
+                profileToken = tokenValues.FirstOrDefault();
+            }
+
+            var imageData = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+            return (imageData, capturedAt, profileToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting latest snapshot from camera {CameraId}", cameraId);
             throw;
         }
     }

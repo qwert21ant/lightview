@@ -37,6 +37,7 @@ public class CameraEventHandlerService : IDisposable
         _eventConsumer.PtzMoved += OnPtzMovedAsync;
         _eventConsumer.CameraStatistics += OnCameraStatisticsAsync;
         _eventConsumer.CameraMetadataUpdated += OnCameraMetadataUpdatedAsync;
+        _eventConsumer.CameraSnapshotCaptured += OnCameraSnapshotCapturedAsync;
 
         _logger.LogInformation("Camera event handler service initialized with async processing");
     }
@@ -210,6 +211,57 @@ public class CameraEventHandlerService : IDisposable
         }
     }
 
+    private async Task OnCameraSnapshotCapturedAsync(CameraSnapshotCapturedEvent e)
+    {
+        try
+        {
+            _logger.LogDebug("Processing camera snapshot captured event: Camera {CameraId}", e.CameraId);
+
+            // Download the latest snapshot from camera-controller and save to database
+            using var scope = _serviceScopeFactory.CreateScope();
+            var cameraService = scope.ServiceProvider.GetRequiredService<ICameraService>();
+            var cameraControllerClient = scope.ServiceProvider.GetRequiredService<CameraControllerConnector.Interfaces.ICameraControllerClient>();
+
+            try
+            {
+                // Get the latest snapshot from camera-controller
+                var (imageData, capturedAt, profileToken) = await cameraControllerClient.GetLatestSnapshotAsync(e.CameraId);
+                
+                if (imageData != null && imageData.Length > 0)
+                {
+                    // Save the snapshot to database
+                    await cameraService.SaveSnapshotAsync(e.CameraId, imageData, profileToken, capturedAt);
+                    
+                    _logger.LogInformation("Camera {CameraId} snapshot downloaded and saved: {FileSize} bytes, capture time: {CaptureTime}ms", 
+                        e.CameraId, imageData.Length, e.CaptureTime.TotalMilliseconds);
+                }
+                else
+                {
+                    _logger.LogWarning("Camera {CameraId} snapshot event received but no image data available from camera-controller", e.CameraId);
+                }
+            }
+            catch (Exception downloadEx)
+            {
+                _logger.LogError(downloadEx, "Failed to download and save snapshot for camera {CameraId}", e.CameraId);
+                // Don't re-throw download errors - we still want to send the notification
+            }
+
+            // Send snapshot notification to SignalR clients (without the actual image data to keep it lightweight)
+            await _hubContext.Clients.All.SendAsync("CameraSnapshotCaptured", new
+            {
+                CameraId = e.CameraId,
+                Timestamp = e.Timestamp,
+                CaptureTime = e.CaptureTime.TotalMilliseconds,
+                ProfileToken = e.ProfileToken
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing camera snapshot captured event for camera {CameraId}", e.CameraId);
+            throw; // Re-throw to trigger message retry via RabbitMQ
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -223,6 +275,7 @@ public class CameraEventHandlerService : IDisposable
             _eventConsumer.PtzMoved -= OnPtzMovedAsync;
             _eventConsumer.CameraStatistics -= OnCameraStatisticsAsync;
             _eventConsumer.CameraMetadataUpdated -= OnCameraMetadataUpdatedAsync;
+            _eventConsumer.CameraSnapshotCaptured -= OnCameraSnapshotCapturedAsync;
 
             _logger.LogInformation("Camera event handler service disposed");
         }

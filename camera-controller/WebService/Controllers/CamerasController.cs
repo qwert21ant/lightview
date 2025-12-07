@@ -118,7 +118,9 @@ public class CamerasController : ControllerBase
                     MaxReconnectAttempts = request.MonitoringConfig.MaxReconnectAttempts,
                     ReconnectDelay = request.MonitoringConfig.ReconnectDelay,
                     PublishHealthEvents = request.MonitoringConfig.PublishHealthEvents,
-                    PublishStatistics = request.MonitoringConfig.PublishStatistics
+                    PublishStatistics = request.MonitoringConfig.PublishStatistics,
+                    SnapshotInterval = request.MonitoringConfig.SnapshotInterval,
+                    SnapshotProfileToken = request.MonitoringConfig.SnapshotProfileToken
                 };
             }
             
@@ -555,6 +557,101 @@ public class CamerasController : ControllerBase
                 Success = false,
                 ErrorMessage = ex.Message,
                 ErrorCode = "PTZ_REMOVE_PRESET_FAILED"
+            });
+        }
+    }
+
+    [HttpPost("{id}/snapshot")]
+    public async Task<IActionResult> CaptureSnapshot(Guid id, [FromQuery] string? profileToken = null)
+    {
+        _logger.LogInformation("Capturing snapshot for camera {CameraId} with profile {ProfileToken}", id, profileToken);
+        try
+        {
+            var monitoring = _cameraService.GetCamera(id);
+            if (monitoring == null)
+            {
+                return NotFound(new ApiResponse
+                {
+                    Success = false,
+                    ErrorMessage = "Camera not found",
+                    ErrorCode = "CAMERA_NOT_FOUND"
+                });
+            }
+
+            var snapshotBytes = await monitoring.Camera.CaptureSnapshotAsync(profileToken);
+            if (snapshotBytes == null)
+            {
+                return BadRequest(new ApiResponse
+                {
+                    Success = false,
+                    ErrorMessage = "Failed to capture snapshot",
+                    ErrorCode = "SNAPSHOT_CAPTURE_FAILED"
+                });
+            }
+
+            return File(snapshotBytes, "image/jpeg", $"camera_{id}_snapshot_{DateTime.UtcNow:yyyyMMddHHmmss}.jpg");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to capture snapshot for camera {CameraId}", id);
+            return BadRequest(new ApiResponse
+            {
+                Success = false,
+                ErrorMessage = ex.Message,
+                ErrorCode = "SNAPSHOT_CAPTURE_FAILED"
+            });
+        }
+    }
+
+    [HttpGet("{id}/snapshot/latest")]
+    public IActionResult GetLatestSnapshot(Guid id)
+    {
+        _logger.LogDebug("Getting latest snapshot for camera {CameraId}", id);
+        try
+        {
+            var monitoring = _cameraService.GetCamera(id);
+            if (monitoring == null)
+            {
+                return NotFound(new ApiResponse
+                {
+                    Success = false,
+                    ErrorMessage = "Camera not found",
+                    ErrorCode = "CAMERA_NOT_FOUND"
+                });
+            }
+
+            var (snapshotData, timestamp, profileToken) = monitoring.GetLatestSnapshot();
+            
+            if (snapshotData == null || timestamp == null)
+            {
+                return NotFound(new ApiResponse
+                {
+                    Success = false,
+                    ErrorMessage = "No snapshot available",
+                    ErrorCode = "NO_SNAPSHOT_AVAILABLE"
+                });
+            }
+
+            var fileName = $"camera_{id}_latest_snapshot_{timestamp.Value:yyyyMMddHHmmss}.jpg";
+            
+            // Set Last-Modified header
+            Response.Headers["Last-Modified"] = timestamp.Value.ToString("R");
+            Response.Headers["X-Snapshot-Timestamp"] = timestamp.Value.ToString("O");
+            if (!string.IsNullOrEmpty(profileToken))
+            {
+                Response.Headers["X-Profile-Token"] = profileToken;
+            }
+
+            return File(snapshotData, "image/jpeg", fileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get latest snapshot for camera {CameraId}", id);
+            return BadRequest(new ApiResponse
+            {
+                Success = false,
+                ErrorMessage = ex.Message,
+                ErrorCode = "LATEST_SNAPSHOT_FAILED"
             });
         }
     }

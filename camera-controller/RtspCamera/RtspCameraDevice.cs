@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using CameraController.Contracts.Interfaces;
 using CameraController.Contracts.Models;
 using Lightview.Shared.Contracts;
+using RtspCamera.Services;
 
 namespace RtspCamera;
 
@@ -18,6 +19,7 @@ public class RtspCameraDevice : ICamera
     private readonly ILogger<RtspCameraDevice>? _logger;
     private readonly HttpClient _httpClient;
     private readonly List<CameraProfile> _profiles;
+    private readonly FfmpegSnapshotService _snapshotService;
     private bool _disposed;
     
     // Health check timeouts
@@ -61,9 +63,10 @@ public class RtspCameraDevice : ICamera
         _logger?.LogDebug("Updated {ProfileCount} profiles with origin feed URI for camera {CameraId}", _profiles.Count, Id);
     }
 
-    public RtspCameraDevice(Camera configuration, ILogger<RtspCameraDevice>? logger = null)
+    public RtspCameraDevice(Camera configuration, FfmpegSnapshotService snapshotService, ILogger<RtspCameraDevice>? logger = null)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        _snapshotService = snapshotService ?? throw new ArgumentNullException(nameof(snapshotService));
         _logger = logger;
         _profiles = new List<CameraProfile>();
         
@@ -352,7 +355,38 @@ public class RtspCameraDevice : ICamera
 
     public async Task<byte[]?> CaptureSnapshotAsync(string? profileToken = null, CancellationToken cancellationToken = default)
     {
-        return null;
+        try
+        {
+            _logger?.LogDebug("Capturing snapshot for camera {CameraName} using profile {ProfileToken}", 
+                _configuration.Name, profileToken ?? "default");
+
+            // Use the RTSP URL for snapshot capture
+            var rtspUrl = _configuration.Url.ToString();
+            
+            var snapshot = await _snapshotService.CaptureSnapshotAsync(
+                rtspUrl,
+                _configuration.Username,
+                _configuration.Password,
+                timeoutSeconds: 15, // Allow more time for snapshot capture
+                cancellationToken);
+
+            if (snapshot != null)
+            {
+                _logger?.LogDebug("Successfully captured snapshot for camera {CameraName}: {ByteCount} bytes", 
+                    _configuration.Name, snapshot.Length);
+            }
+            else
+            {
+                _logger?.LogWarning("Failed to capture snapshot for camera {CameraName}", _configuration.Name);
+            }
+
+            return snapshot;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error capturing snapshot for camera {CameraName}", _configuration.Name);
+            return null;
+        }
     }
 
     public async Task<ImageSettings?> GetImageSettingsAsync(CancellationToken cancellationToken = default)

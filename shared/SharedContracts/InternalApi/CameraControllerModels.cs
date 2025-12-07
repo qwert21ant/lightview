@@ -112,4 +112,14 @@ public class CameraMonitoringConfig
     /// Whether to publish detailed statistics
     /// </summary>
     public bool PublishStatistics { get; set; } = false;
+    
+    /// <summary>
+    /// Interval between snapshot captures
+    /// </summary>
+    public TimeSpan SnapshotInterval { get; set; } = TimeSpan.FromMinutes(2);
+    
+    /// <summary>
+    /// Profile token to use for snapshot capture (null for default)
+    /// </summary>
+    public string? SnapshotProfileToken { get; set; }
 }

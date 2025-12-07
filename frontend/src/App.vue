@@ -25,6 +25,9 @@
     <div v-else>
       <RouterView />
     </div>
+    
+    <!-- Global Notification Container -->
+    <NotificationContainer />
   </div>
 </template>
 
@@ -34,8 +37,11 @@ import { RouterView, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { CameraManager } from '@/services/cameraManager'
 import { CAMERA_MANAGER_KEY } from '@/composables/useCamera'
+import { NotificationService } from '@/services/notificationService'
+import { NOTIFICATION_SERVICE_KEY } from '@/composables/useNotifications'
 import AppHeader from '@/components/AppHeader.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
+import NotificationContainer from '@/components/NotificationContainer.vue'
 
 const route = useRoute()
 const { isAuthenticated } = useAuth()
@@ -45,6 +51,10 @@ const cameraManager = new CameraManager()
 // @ts-ignore
 window.__cameraManager = cameraManager // For debugging
 provide(CAMERA_MANAGER_KEY, cameraManager)
+
+// Create and provide NotificationService instance
+const notificationService = new NotificationService()
+provide(NOTIFICATION_SERVICE_KEY, notificationService)
 
 // Show main layout (sidebar + header) for authenticated users on protected routes
 const showMainLayout = computed(() => {
@@ -91,6 +101,19 @@ async function initializeCameraManager() {
         },
         onCameraEvent: (cameraId, eventType, data) => {
           console.log(`Camera ${cameraId} event:`, eventType, data)
+          
+          // Handle camera error events with notifications
+          if (eventType === 'Error') {
+            const camera = cameraManager.cameras.value?.find(c => c.id === cameraId)
+            const cameraName = camera?.name || `Camera ${cameraId.substring(0, 8)}`
+            
+            // Show error notification based on severity
+            if (data.severity === 'Error') {
+              showErrorNotification(`Camera Error - ${cameraName}`, data.errorMessage || 'An error occurred with the camera')
+            } else {
+              showWarningNotification(`Camera Warning - ${cameraName}`, data.errorMessage || 'A warning occurred with the camera')
+            }
+          }
         }
       })
       
@@ -115,5 +138,16 @@ async function disconnectFromHub() {
   } catch (error) {
     console.error('Failed to disconnect from Camera Hub:', error)
   }
+}
+
+// Notification methods
+function showErrorNotification(title: string, message: string) {
+  notificationService.error(title, message)
+  console.error(title, message)
+}
+
+function showWarningNotification(title: string, message: string) {
+  notificationService.warning(title, message)
+  console.warn(title, message)
 }
 </script>

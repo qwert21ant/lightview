@@ -91,7 +91,6 @@ import AddCameraModal from '@/components/AddCameraModal.vue'
 import EditCameraModal from '@/components/EditCameraModal.vue'
 import { useCameraManager } from '@/composables/useCamera'
 import type { Camera, AddCameraRequest } from '@/types/camera'
-import { CameraStatus } from '@/types/camera'
 
 const router = useRouter()
 const cameraManager = useCameraManager()
@@ -101,27 +100,7 @@ const cameras = computed(() => {
   if (!cameraManager.cameras.value) return []
   
   return [...cameraManager.cameras.value].sort((a, b) => {
-    // First sort by status priority (Online/Degraded > Connecting > Offline > Error)
-    const statusPriority = (status: CameraStatus) => {
-      switch (status) {
-        case CameraStatus.Online:
-        case CameraStatus.Degraded:
-          return 1
-        case CameraStatus.Connecting:
-          return 2
-        case CameraStatus.Offline:
-          return 3
-        case CameraStatus.Error:
-          return 4
-        default:
-          return 5
-      }
-    }
-    
-    const statusDiff = statusPriority(a.status) - statusPriority(b.status)
-    if (statusDiff !== 0) return statusDiff
-    
-    // Then sort alphabetically by name
+    // Sort alphabetically by name
     return a.name.localeCompare(b.name)
   })
 })

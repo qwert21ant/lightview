@@ -10,6 +10,7 @@ public class AppDbContext : DbContext
     public DbSet<Camera> Cameras => Set<Camera>();
     public DbSet<CameraMetadata> CameraMetadata => Set<CameraMetadata>();
     public DbSet<CameraProfile> CameraProfiles => Set<CameraProfile>();
+    public DbSet<CameraSnapshot> CameraSnapshots => Set<CameraSnapshot>();
     public DbSet<User> Users => Set<User>();
     // Add other DbSets as needed
 
@@ -82,6 +83,27 @@ public class AppDbContext : DbContext
             // Create index on CameraId for performance
             entity.HasIndex(e => e.CameraId);
             entity.HasIndex(e => new { e.CameraId, e.Token }).IsUnique();
+        });
+        
+        // Configure CameraSnapshot entity
+        modelBuilder.Entity<CameraSnapshot>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.CameraId).IsRequired();
+            entity.Property(e => e.ImageData).IsRequired();
+            entity.Property(e => e.ProfileToken).HasMaxLength(100);
+            entity.Property(e => e.CapturedAt).IsRequired();
+            entity.Property(e => e.FileSize).IsRequired();
+            
+            // Create indexes for efficient queries
+            entity.HasIndex(e => e.CameraId);
+            entity.HasIndex(e => new { e.CameraId, e.CapturedAt });
+            
+            // Configure relationship
+            entity.HasOne(e => e.Camera)
+                .WithMany()
+                .HasForeignKey(e => e.CameraId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
         
         // Configure User entity

@@ -320,4 +320,66 @@ public class CameraService : ICameraService
             return false;
         }
     }
+
+    public async Task SaveSnapshotAsync(Guid cameraId, byte[] imageData, string? profileToken = null, DateTime? capturedAt = null)
+    {
+        try
+        {
+            // Verify camera exists
+            var cameraExists = await _dbContext.Cameras.AnyAsync(c => c.Id == cameraId);
+            if (!cameraExists)
+            {
+                _logger.LogWarning("Cannot save snapshot for non-existent camera {CameraId}", cameraId);
+                return;
+            }
+
+            // Remove existing snapshots for this camera to keep only the latest
+            var existingSnapshots = await _dbContext.CameraSnapshots
+                .Where(s => s.CameraId == cameraId)
+                .ToListAsync();
+            
+            if (existingSnapshots.Any())
+            {
+                _dbContext.CameraSnapshots.RemoveRange(existingSnapshots);
+                _logger.LogDebug("Removed {Count} existing snapshots for camera {CameraId}", existingSnapshots.Count, cameraId);
+            }
+
+            var snapshot = new Persistence.Models.CameraSnapshot
+            {
+                Id = Guid.NewGuid(),
+                CameraId = cameraId,
+                ImageData = imageData,
+                ProfileToken = profileToken,
+                CapturedAt = capturedAt?.ToUniversalTime() ?? DateTime.UtcNow,
+                FileSize = imageData.Length
+            };
+
+            _dbContext.CameraSnapshots.Add(snapshot);
+            await _dbContext.SaveChangesAsync();
+
+            _logger.LogInformation("Saved latest snapshot for camera {CameraId}: {FileSize} bytes", cameraId, imageData.Length);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save snapshot for camera {CameraId}", cameraId);
+            throw;
+        }
+    }
+
+    public async Task<Persistence.Models.CameraSnapshot?> GetLatestSnapshotAsync(Guid cameraId)
+    {
+        try
+        {
+            return await _dbContext.CameraSnapshots
+                .AsNoTracking()
+                .Where(s => s.CameraId == cameraId)
+                .OrderByDescending(s => s.CapturedAt)
+                .FirstOrDefaultAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get latest snapshot for camera {CameraId}", cameraId);
+            throw;
+        }
+    }
 }

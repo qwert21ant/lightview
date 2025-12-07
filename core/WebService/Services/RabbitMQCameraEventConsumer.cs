@@ -40,6 +40,7 @@ public class RabbitMQCameraEventConsumer : ICameraEventConsumer, IDisposable
     public event Func<PtzMovedEvent, Task>? PtzMoved;
     public event Func<CameraStatisticsEvent, Task>? CameraStatistics;
     public event Func<CameraMetadataUpdatedEvent, Task>? CameraMetadataUpdated;
+    public event Func<CameraSnapshotCapturedEvent, Task>? CameraSnapshotCaptured;
 
     public RabbitMQCameraEventConsumer(
         ILogger<RabbitMQCameraEventConsumer> logger,
@@ -318,6 +319,7 @@ public class RabbitMQCameraEventConsumer : ICameraEventConsumer, IDisposable
                 nameof(PtzMovedEvent) => await HandleEventAsync(json, PtzMoved),
                 nameof(CameraStatisticsEvent) => await HandleEventAsync(json, CameraStatistics),
                 nameof(CameraMetadataUpdatedEvent) => await HandleEventAsync(json, CameraMetadataUpdated),
+                nameof(CameraSnapshotCapturedEvent) => await HandleEventAsync(json, CameraSnapshotCaptured),
                 _ => false
             };
         }

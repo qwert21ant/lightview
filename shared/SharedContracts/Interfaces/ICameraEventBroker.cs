@@ -33,6 +33,11 @@ public interface ICameraEventPublisher
     Task PublishCameraMetadataUpdatedAsync(CameraMetadataUpdatedEvent cameraEvent, CancellationToken cancellationToken = default);
     
     /// <summary>
+    /// Publish camera snapshot captured event
+    /// </summary>
+    Task PublishCameraSnapshotCapturedAsync(CameraSnapshotCapturedEvent cameraEvent, CancellationToken cancellationToken = default);
+    
+    /// <summary>
     /// Publish any camera event
     /// </summary>
     Task PublishCameraEventAsync<T>(T cameraEvent, CancellationToken cancellationToken = default) where T : CameraEventBase;
@@ -77,4 +82,9 @@ public interface ICameraEventConsumer
     /// Event fired when camera metadata is updated
     /// </summary>
     event Func<CameraMetadataUpdatedEvent, Task>? CameraMetadataUpdated;
+    
+    /// <summary>
+    /// Event fired when camera snapshot is captured
+    /// </summary>
+    event Func<CameraSnapshotCapturedEvent, Task>? CameraSnapshotCaptured;
 }

@@ -31,3 +31,29 @@ public class CameraHealthChangedEventArgs : EventArgs
     public CameraHealthStatus PreviousHealth { get; set; } = new();
     public CameraHealthStatus CurrentHealth { get; set; } = new();
 }
+
+/// <summary>
+/// Event arguments for camera snapshot captured events
+/// </summary>
+public class CameraSnapshotCapturedEventArgs : EventArgs
+{
+    /// <summary>
+    /// Camera ID that captured the snapshot
+    /// </summary>
+    public required Guid CameraId { get; set; }
+    
+    /// <summary>
+    /// Snapshot image data (JPEG bytes)
+    /// </summary>
+    public required byte[] SnapshotData { get; set; }
+    
+    /// <summary>
+    /// Profile token used for capture
+    /// </summary>
+    public string? ProfileToken { get; set; }
+    
+    /// <summary>
+    /// Time taken to capture the snapshot
+    /// </summary>
+    public TimeSpan CaptureTime { get; set; }
+}

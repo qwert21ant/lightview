@@ -46,4 +46,5 @@ public static class CameraEventRoutingKeys
     public const string PtzMoved = "camera.ptz.moved";
     public const string CameraStatistics = "camera.statistics";
     public const string MetadataUpdated = "camera.metadata.updated";
+    public const string SnapshotCaptured = "camera.snapshot.captured";
 }

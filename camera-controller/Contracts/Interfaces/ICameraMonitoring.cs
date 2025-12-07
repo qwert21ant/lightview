@@ -48,4 +48,15 @@ public interface ICameraMonitoring : IDisposable
     /// Update monitoring configuration
     /// </summary>
     void UpdateConfig(CameraMonitoringConfig config);
+    
+    /// <summary>
+    /// Event raised when a snapshot is captured during monitoring
+    /// </summary>
+    event EventHandler<CameraSnapshotCapturedEventArgs>? SnapshotCaptured;
+    
+    /// <summary>
+    /// Get the latest captured snapshot data
+    /// </summary>
+    /// <returns>Tuple containing snapshot data, timestamp, and profile token. Returns null values if no snapshot available.</returns>
+    (byte[]? Data, DateTime? Timestamp, string? ProfileToken) GetLatestSnapshot();
 }

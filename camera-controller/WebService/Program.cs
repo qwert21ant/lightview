@@ -5,6 +5,7 @@ using CameraController.Contracts.Interfaces;
 using CameraController.Contracts.Models;
 using Lightview.Shared.Contracts.Configuration;
 using Lightview.Shared.Contracts.Interfaces;
+using RtspCamera.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,6 +51,9 @@ builder.Services.AddSingleton<ICameraMonitoringFactory, CameraMonitoringFactory>
 builder.Services.AddSingleton<ICameraService, CameraService>();
 builder.Services.AddSingleton<ICameraEventPublisher, RabbitMQCameraEventPublisher>();
 builder.Services.AddSingleton<IMediaMtxService, MediaMtxService>();
+
+// Register RtspCamera services
+builder.Services.AddSingleton<FfmpegSnapshotService>();
 
 // Register background services
 builder.Services.AddHostedService<CoreSyncService>();

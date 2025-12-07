@@ -286,7 +286,6 @@ const loadCamera = () => {
 
     // Wait for camera manager to be connected and initialized
     if (!cameraManager.isConnected.value || !cameraManager.isInitialized.value) {
-      error.value = 'Camera manager not ready. Please wait for initialization to complete.'
       return
     }
 

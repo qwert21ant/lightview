@@ -32,6 +32,17 @@ export class CameraManager extends BaseSignalRService {
   
   // Camera-specific reactive state
   public cameras = ref<Camera[]>([]);
+  
+  // Snapshot state - reactive map of camera ID to snapshot data
+  private _snapshots = ref<Map<string, {
+    cameraId: string;
+    imageData: string;
+    capturedAt: string;
+    profileToken?: string;
+    fileSize: number;
+  }>>(new Map());
+  
+  private _snapshotLoadingStates = ref<Map<string, boolean>>(new Map());
 
   // Reactive computed properties for easier component access
   public readonly isInitialized = computed(() => this._isInitialized.value);
@@ -43,8 +54,13 @@ export class CameraManager extends BaseSignalRService {
       // Load initial cameras after connection
       console.log('CameraManager: Loading initial cameras...');
       await this.getAllCameras();
+      
+      // Load snapshots for online cameras
+      const onlineCameras = this.cameras.value.filter(c => c.status === CameraStatus.Online);
+      await Promise.all(onlineCameras.map(camera => this.loadSnapshotForCamera(camera.id)));
+      
       this._isInitialized.value = true;
-      console.log(`CameraManager: Initialized with ${this.cameras.value.length} cameras`);
+      console.log(`CameraManager: Initialized with ${this.cameras.value.length} cameras, loaded ${onlineCameras.length} snapshots`);
     } catch (error) {
       console.error('CameraManager: Failed to load initial cameras:', error);
       this._isInitialized.value = false;
@@ -128,6 +144,20 @@ export class CameraManager extends BaseSignalRService {
       this.eventHandlers.onPtzStopped?.(cameraId);
     });
 
+    // Snapshot events
+    this.on('CameraSnapshotCaptured', (eventData: {
+      cameraId: string;
+      timestamp: string;
+      captureTime: number;
+      profileToken?: string;
+    }) => {
+      // Automatically load the new snapshot
+      this.loadSnapshotForCamera(eventData.cameraId);
+      
+      // Still call the event handler for any custom logic
+      this.eventHandlers.onSnapshotCaptured?.(eventData.cameraId, eventData);
+    });
+
     // Generic camera events
     this.on('CameraEvent', (cameraId: string, eventType: string, data: any) => {
       this.eventHandlers.onCameraEvent?.(cameraId, eventType, data);
@@ -184,6 +214,11 @@ export class CameraManager extends BaseSignalRService {
     
     if (data.currentStatus === CameraStatus.Online && previousStatus !== CameraStatus.Online) {
       camera.lastConnectedAt = new Date().toISOString();
+      // Load initial snapshot when camera comes online
+      this.loadSnapshotForCamera(camera.id);
+    } else if (data.currentStatus === CameraStatus.Offline && previousStatus === CameraStatus.Online) {
+      // Clear snapshot when camera goes offline
+      this.clearSnapshotForCamera(camera.id);
     }
     
     // Trigger appropriate event handlers based on status change
@@ -341,6 +376,78 @@ export class CameraManager extends BaseSignalRService {
       console.error(`Failed to stop PTZ for camera ${cameraId}:`, error);
       throw error;
     }
+  }
+
+  // Snapshot operations
+  async getLatestSnapshot(cameraId: string): Promise<{
+    cameraId: string;
+    imageData: string;
+    capturedAt: string;
+    profileToken?: string;
+    fileSize: number;
+  } | null> {
+    try {
+      return await this.invoke('GetLatestSnapshot', cameraId);
+    } catch (error) {
+      console.error('Failed to get latest snapshot:', error);
+      return null;
+    }
+  }
+  
+  // Internal method to load and cache snapshot for a camera
+  private async loadSnapshotForCamera(cameraId: string): Promise<void> {
+    if (this._snapshotLoadingStates.value.get(cameraId)) {
+      return; // Already loading
+    }
+    
+    // Create new Map to trigger reactivity
+    const newLoadingStates = new Map(this._snapshotLoadingStates.value);
+    newLoadingStates.set(cameraId, true);
+    this._snapshotLoadingStates.value = newLoadingStates;
+    
+    try {
+      const snapshot = await this.getLatestSnapshot(cameraId);
+      if (snapshot) {
+        // Create new Map to trigger reactivity
+        const newSnapshots = new Map(this._snapshots.value);
+        newSnapshots.set(cameraId, snapshot);
+        this._snapshots.value = newSnapshots;
+        console.log(`Loaded snapshot for camera ${cameraId}: ${snapshot.fileSize} bytes`);
+      }
+    } catch (error) {
+      console.error(`Failed to load snapshot for camera ${cameraId}:`, error);
+    } finally {
+      // Create new Map to trigger reactivity
+      const newLoadingStates = new Map(this._snapshotLoadingStates.value);
+      newLoadingStates.set(cameraId, false);
+      this._snapshotLoadingStates.value = newLoadingStates;
+    }
+  }
+  
+  // Public methods for accessing snapshot state
+  getSnapshotForCamera(cameraId: string) {
+    return computed(() => this._snapshots.value.get(cameraId) || null);
+  }
+  
+  isLoadingSnapshotForCamera(cameraId: string) {
+    return computed(() => this._snapshotLoadingStates.value.get(cameraId) || false);
+  }
+  
+  // Manually trigger snapshot load (e.g., on camera connect)
+  async refreshSnapshotForCamera(cameraId: string): Promise<void> {
+    await this.loadSnapshotForCamera(cameraId);
+  }
+  
+  // Clear snapshot for a camera (e.g., on disconnect)
+  clearSnapshotForCamera(cameraId: string): void {
+    // Create new Maps to trigger reactivity
+    const newSnapshots = new Map(this._snapshots.value);
+    newSnapshots.delete(cameraId);
+    this._snapshots.value = newSnapshots;
+    
+    const newLoadingStates = new Map(this._snapshotLoadingStates.value);
+    newLoadingStates.delete(cameraId);
+    this._snapshotLoadingStates.value = newLoadingStates;
   }
 
   // Convenience PTZ methods

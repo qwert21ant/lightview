@@ -19,4 +19,6 @@ public interface ICameraService
     Task<StreamUrlResponse?> GetStreamUrlAsync(Guid id, string? profileToken = null);
     Task<PtzMoveResponse?> MovePtzAsync(Guid id, PtzMoveRequest request);
     Task<bool> StopPtzAsync(Guid id);
+    Task SaveSnapshotAsync(Guid cameraId, byte[] imageData, string? profileToken = null, DateTime? capturedAt = null);
+    Task<Persistence.Models.CameraSnapshot?> GetLatestSnapshotAsync(Guid cameraId);
 }

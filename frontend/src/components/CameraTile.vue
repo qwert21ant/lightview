@@ -3,14 +3,28 @@
     <!-- Camera Preview -->
     <div class="relative bg-gray-900 rounded-t-lg overflow-hidden">
       <div class="aspect-video flex items-center justify-center">
-        <!-- Mock video feed -->
-        <div class="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900">
-          <div class="absolute inset-0 bg-black/20 flex items-center justify-center">
-            <!-- Static noise overlay for mock video effect -->
-            <div class="w-full h-full opacity-10" 
-                 style="background-image: repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255,255,255,0.1) 2px, rgba(255,255,255,0.1) 4px);">
+        <!-- Snapshot preview or placeholder -->
+        <div class="absolute inset-0">
+          <img 
+            v-if="latestSnapshot" 
+            :src="latestSnapshot.imageData" 
+            :alt="`Latest snapshot from ${camera.name}`"
+            class="w-full h-full object-cover"
+            @error="onSnapshotError"
+          />
+          <div v-else class="bg-gradient-to-br from-gray-800 to-gray-900 w-full h-full">
+            <div class="absolute inset-0 bg-black/20 flex items-center justify-center">
+              <div class="text-white/60 text-center">
+                <VideoCameraSlashIcon class="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p class="text-sm">No snapshot available</p>
+              </div>
             </div>
           </div>
+        </div>
+        
+        <!-- Snapshot refresh indicator -->
+        <div v-if="isLoadingSnapshot" class="absolute inset-0 bg-black/30 flex items-center justify-center">
+          <div class="animate-spin rounded-full h-8 w-8 border-2 border-white border-t-transparent"></div>
         </div>
         
         <!-- Video controls overlay -->
@@ -157,10 +171,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { VideoCameraIcon, PlayIcon, Cog6ToothIcon } from '@heroicons/vue/24/outline'
+import { computed } from 'vue'
+import { VideoCameraIcon, PlayIcon, Cog6ToothIcon, VideoCameraSlashIcon } from '@heroicons/vue/24/outline'
 import type { Camera } from '@/types/camera'
 import { CameraStatus, CameraProtocol } from '@/types/camera'
+import { useCameraManager } from '@/composables/useCamera'
 
 interface Props {
   camera: Camera
@@ -175,6 +190,17 @@ const emit = defineEmits<{
   'connect': [camera: Camera]
   'disconnect': [camera: Camera]
 }>()
+
+const cameraManager = useCameraManager()
+
+// Subscribe to reactive snapshot state from camera manager
+const latestSnapshot = cameraManager.getSnapshotForCamera(props.camera.id)
+const isLoadingSnapshot = cameraManager.isLoadingSnapshotForCamera(props.camera.id)
+
+// Handle snapshot display errors
+const onSnapshotError = () => {
+  console.warn(`Failed to display snapshot for camera ${props.camera.id}`)
+}
 
 // Computed properties for handling the new backend models
 const isOnline = computed(() => 

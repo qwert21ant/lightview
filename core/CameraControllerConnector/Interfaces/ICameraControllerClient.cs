@@ -54,6 +54,11 @@ public interface ICameraControllerClient
     Task<byte[]?> CaptureSnapshotAsync(Guid cameraId, string? profileToken = null, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Get the latest snapshot from the camera without capturing a new one
+    /// </summary>
+    Task<(byte[]? ImageData, DateTime? CapturedAt, string? ProfileToken)> GetLatestSnapshotAsync(Guid cameraId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Get WebRTC stream URL for a camera
     /// </summary>
     Task<string?> GetWebRtcStreamUrlAsync(Guid cameraId, CancellationToken cancellationToken = default);

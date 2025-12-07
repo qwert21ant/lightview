@@ -261,7 +261,11 @@ public class CameraService : ICameraService, IDisposable
     /// </summary>
     private ICameraMonitoring CreateMonitoringInstance(ICamera camera, CameraMonitoringConfig config)
     {
-        return _monitoringFactory.CreateMonitoring(camera, config);
+        var monitoring = _monitoringFactory.CreateMonitoring(camera, config);
+        
+        monitoring.SnapshotCaptured += OnCameraSnapshotCaptured;
+        
+        return monitoring;
     }
 
     private void SubscribeToCameraEvents(ICamera camera)
@@ -296,6 +300,32 @@ public class CameraService : ICameraService, IDisposable
                     MoveType = args.MoveType
                 });
             };
+        }
+    }
+
+    private async void OnCameraSnapshotCaptured(object? sender, CameraSnapshotCapturedEventArgs e)
+    {
+        try
+        {
+            _logger.LogDebug("Publishing snapshot event for camera {CameraId}: {ImageSize} bytes", 
+                e.CameraId, e.SnapshotData.Length);
+
+            var snapshotEvent = new CameraSnapshotCapturedEvent
+            {
+                CameraId = e.CameraId,
+                ProfileToken = e.ProfileToken,
+                CaptureTime = e.CaptureTime,
+                Timestamp = DateTime.UtcNow
+            };
+
+            await _eventPublisher.PublishCameraSnapshotCapturedAsync(snapshotEvent);
+            
+            _logger.LogInformation("Published snapshot event for camera {CameraId}: {ImageSize} bytes, capture took {CaptureTime}ms", 
+                e.CameraId, e.SnapshotData.Length, e.CaptureTime.TotalMilliseconds);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error publishing snapshot event for camera {CameraId}", e.CameraId);
         }
     }
 
@@ -555,6 +585,16 @@ public class CameraService : ICameraService, IDisposable
             else
             {
                 _logger.LogWarning("Failed to connect to camera {CameraId}: Connection attempt returned false", cameraId);
+                
+                // Publish camera error event
+                await _eventPublisher.PublishCameraErrorAsync(new CameraErrorEvent
+                {
+                    CameraId = cameraId,
+                    ErrorCode = "CONNECTION_FAILED",
+                    ErrorMessage = "Failed to establish connection to camera",
+                    Severity = ErrorSeverity.Warning,
+                    IsRecoverable = true
+                });
             }
             
             return connected;
@@ -562,6 +602,17 @@ public class CameraService : ICameraService, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error connecting to camera {CameraId}", cameraId);
+            
+            // Publish camera error event for exception
+            await _eventPublisher.PublishCameraErrorAsync(new CameraErrorEvent
+            {
+                CameraId = cameraId,
+                ErrorCode = "CONNECTION_EXCEPTION",
+                ErrorMessage = $"Connection failed with exception: {ex.Message}",
+                Severity = ErrorSeverity.Error,
+                IsRecoverable = true
+            });
+            
             return false;
         }
     }

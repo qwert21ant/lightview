@@ -368,6 +368,42 @@ public class CameraHub : Hub
         _logger.LogDebug("Client {ConnectionId} left camera group {CameraId}", Context.ConnectionId, cameraId);
     }
 
+    // Snapshot Operations
+    public async Task<object?> GetLatestSnapshot(string cameraId)
+    {
+        try
+        {
+            if (!Guid.TryParse(cameraId, out var id))
+            {
+                throw new HubException("Invalid camera ID format");
+            }
+
+            _logger.LogDebug("GetLatestSnapshot called for {CameraId} by {ConnectionId}", cameraId, Context.ConnectionId);
+            
+            var snapshot = await _cameraService.GetLatestSnapshotAsync(id);
+            if (snapshot == null)
+            {
+                return null;
+            }
+
+            // Convert image data to base64 for frontend
+            var base64Image = Convert.ToBase64String(snapshot.ImageData);
+            return new
+            {
+                CameraId = snapshot.CameraId,
+                ImageData = $"data:image/jpeg;base64,{base64Image}",
+                CapturedAt = snapshot.CapturedAt,
+                ProfileToken = snapshot.ProfileToken,
+                FileSize = snapshot.FileSize
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting latest snapshot for camera {CameraId}", cameraId);
+            throw new HubException($"Failed to get latest snapshot for camera {cameraId}");
+        }
+    }
+
     // Send notifications to specific camera group
     public async Task NotifyCameraGroup(string cameraId, string eventType, object data)
     {

@@ -17,6 +17,7 @@ export interface CameraEventHandlers {
   onMotionDetected?: (cameraId: string, timestamp: string, metadata: any) => void;
   onRecordingStarted?: (cameraId: string, recordingId: string) => void;
   onRecordingStopped?: (cameraId: string, recordingId: string) => void;
+  onSnapshotCaptured?: (cameraId: string, eventData: SnapshotCapturedEvent) => void;
 }
 
 // Hub group management
@@ -58,4 +59,12 @@ export interface RecordingEvent {
   duration?: number; // in seconds
   fileSize?: number; // in bytes
   filePath?: string;
+}
+
+export interface SnapshotCapturedEvent {
+  cameraId: string;
+  timestamp: string;
+  captureTime: number; // in milliseconds
+  profileToken?: string;
+  hasNewSnapshot?: boolean;
 }

@@ -1,6 +1,7 @@
 using CameraController.Contracts.Interfaces;
 using Lightview.Shared.Contracts;
 using RtspCamera;
+using RtspCamera.Services;
 
 namespace WebService.Factories;
 
@@ -11,11 +12,13 @@ public class CameraFactory : ICameraFactory
 {
     private readonly ILogger<CameraFactory> _logger;
     private readonly ILoggerFactory _loggerFactory;
+    private readonly FfmpegSnapshotService _snapshotService;
 
-    public CameraFactory(ILogger<CameraFactory> logger, ILoggerFactory loggerFactory)
+    public CameraFactory(ILogger<CameraFactory> logger, ILoggerFactory loggerFactory, FfmpegSnapshotService snapshotService)
     {
         _logger = logger;
         _loggerFactory = loggerFactory;
+        _snapshotService = snapshotService;
     }
 
     public ICamera CreateCamera(Camera configuration)
@@ -31,7 +34,7 @@ public class CameraFactory : ICameraFactory
                 throw new NotImplementedException($"ONVIF camera implementation not yet implemented");
             case CameraProtocol.Rtsp:
                 var rtspLogger = _loggerFactory.CreateLogger<RtspCameraDevice>();
-                return new RtspCameraDevice(configuration, rtspLogger);
+                return new RtspCameraDevice(configuration, _snapshotService, rtspLogger);
         }
 
         throw new NotImplementedException($"ICamera implementation for protocol {configuration.Protocol} not yet implemented");

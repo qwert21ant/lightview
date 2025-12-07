@@ -72,6 +72,13 @@ public class RabbitMQCameraEventPublisher : ICameraEventPublisher, IDisposable
         await PublishCameraEventAsync(cameraEvent, CameraEventRoutingKeys.MetadataUpdated, cancellationToken);
     }
 
+    public async Task PublishCameraSnapshotCapturedAsync(CameraSnapshotCapturedEvent cameraEvent, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Publishing camera snapshot captured event for camera {CameraId}: {ImageSize} bytes", 
+            cameraEvent.CameraId, cameraEvent.ImageSize);
+        await PublishCameraEventAsync(cameraEvent, CameraEventRoutingKeys.SnapshotCaptured, cancellationToken);
+    }
+
     public async Task PublishCameraEventAsync<T>(T cameraEvent, CancellationToken cancellationToken = default) where T : CameraEventBase
     {
         var routingKey = GetRoutingKeyForEventType<T>();
@@ -264,6 +271,7 @@ public class RabbitMQCameraEventPublisher : ICameraEventPublisher, IDisposable
             nameof(PtzMovedEvent) => CameraEventRoutingKeys.PtzMoved,
             nameof(CameraStatisticsEvent) => CameraEventRoutingKeys.CameraStatistics,
             nameof(CameraMetadataUpdatedEvent) => CameraEventRoutingKeys.MetadataUpdated,
+            nameof(CameraSnapshotCapturedEvent) => CameraEventRoutingKeys.SnapshotCaptured,
             _ => "camera.unknown"
         };
     }

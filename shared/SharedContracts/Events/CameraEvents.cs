@@ -70,6 +70,37 @@ public class CameraMetadataUpdatedEvent : CameraEventBase
 }
 
 /// <summary>
+/// Event published when a camera snapshot is captured
+/// </summary>
+public class CameraSnapshotCapturedEvent : CameraEventBase
+{
+    /// <summary>
+    /// JPEG image data as base64 string
+    /// </summary>
+    public string ImageData { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Image file size in bytes
+    /// </summary>
+    public int ImageSize { get; set; }
+    
+    /// <summary>
+    /// Profile token used for capture
+    /// </summary>
+    public string? ProfileToken { get; set; }
+    
+    /// <summary>
+    /// Time taken to capture the snapshot
+    /// </summary>
+    public TimeSpan CaptureTime { get; set; }
+    
+    /// <summary>
+    /// Resolution of the captured image
+    /// </summary>
+    public string? Resolution { get; set; }
+}
+
+/// <summary>
 /// Flags indicating which camera metadata was updated
 /// </summary>
 [Flags]
