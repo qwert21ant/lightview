@@ -9,7 +9,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Persistence\Persistence.csproj" />
     <ProjectReference Include="..\CameraControllerConnector\CameraControllerConnector.csproj" />
+    <ProjectReference Include="..\SettingsManager\SettingsManager.csproj" />
     <ProjectReference Include="..\..\shared\SharedContracts\SharedContracts.csproj" />
+    <ProjectReference Include="..\..\shared\RabbitMQShared\RabbitMQShared.csproj" />
   </ItemGroup>
 
   <ItemGroup>

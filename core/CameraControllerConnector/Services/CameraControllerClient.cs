@@ -323,31 +323,6 @@ public class CameraControllerClient : ICameraControllerClient
         }
     }
 
-    public async Task<string?> GetWebRtcStreamUrlAsync(Guid cameraId, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            _logger.LogDebug("Getting WebRTC stream URL for camera {CameraId}", cameraId);
-            
-            var response = await _httpClient.GetAsync($"/api/streams/{cameraId}/webrtc", cancellationToken);
-            
-            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-            {
-                return null;
-            }
-
-            response.EnsureSuccessStatusCode();
-
-            var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<StreamUrlResponse>>(_jsonOptions, cancellationToken);
-            return apiResponse?.Data?.Url;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting WebRTC URL for camera {CameraId}", cameraId);
-            throw;
-        }
-    }
-
     public async Task<PtzMoveResponse> MovePtzAsync(Guid cameraId, PtzMoveRequest request, CancellationToken cancellationToken = default)
     {
         try

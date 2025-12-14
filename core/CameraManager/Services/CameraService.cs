@@ -281,20 +281,6 @@ public class CameraService : ICameraService
         }
     }
 
-    public async Task<StreamUrlResponse?> GetStreamUrlAsync(Guid id, string? profileToken = null)
-    {
-        try
-        {
-            var streamUrl = await _cameraControllerClient.GetWebRtcStreamUrlAsync(id);
-            return streamUrl != null ? new StreamUrlResponse { Url = streamUrl, Protocol = "WebRTC" } : null;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get stream URL for camera {CameraId}", id);
-            return null;
-        }
-    }
-
     public async Task<PtzMoveResponse?> MovePtzAsync(Guid id, PtzMoveRequest request)
     {
         try

@@ -1,7 +1,9 @@
 using CameraManager.Interfaces;
 using Lightview.Shared.Contracts;
 using Lightview.Shared.Contracts.InternalApi;
+using Lightview.Shared.Contracts.Settings;
 using Microsoft.AspNetCore.Mvc;
+using SettingsManager.Interfaces;
 using WebService.Authentication;
 
 namespace WebService.Controllers;
@@ -13,20 +15,33 @@ namespace WebService.Controllers;
 [EndpointGroupName("internal")]
 public class CameraControllerController : ControllerBase
 {
+    private readonly ISettingsService _settingsService;
     private readonly ICameraService _cameraService;
     private readonly ILogger<CameraControllerController> _logger;
 
-    public CameraControllerController(ICameraService cameraService, ILogger<CameraControllerController> logger)
-    {
+    public CameraControllerController(
+        ISettingsService settingsService,
+        ICameraService cameraService,
+        ILogger<CameraControllerController> logger
+    ) {
+        _settingsService = settingsService;
         _cameraService = cameraService;
         _logger = logger;
+    }
+
+    [HttpGet("health")]
+    public ActionResult GetHealth()
+    {
+        _logger.LogDebug("Health check requested for camera-controller");
+
+        return Ok();
     }
 
     /// <summary>
     /// Get all cameras from persistence with credentials for camera-controller initialization
     /// </summary>
     [HttpGet("cameras")]
-    public async Task<ActionResult<ApiResponse<List<CameraInitializationResponse>>>> GetAllCameras()
+    public async Task<ActionResult<List<CameraInitializationResponse>>> GetAllCameras()
     {
         try
         {
@@ -43,7 +58,6 @@ public class CameraControllerController : ControllerBase
                 Password = camera.Password,
                 Protocol = camera.Protocol,
                 Status = camera.Status,
-                IsMonitoring = false, // Will be determined by camera-controller
                 Health = null, // Not available from persistence
                 LastConnectedAt = camera.LastConnectedAt != default ? camera.LastConnectedAt : null,
                 DeviceInfo = camera.DeviceInfo,
@@ -53,12 +67,7 @@ public class CameraControllerController : ControllerBase
 
             _logger.LogInformation("Retrieved {Count} cameras from persistence for camera-controller", cameraInitializationList.Count);
 
-            return Ok(new ApiResponse<List<CameraInitializationResponse>>
-            {
-                Success = true,
-                Data = cameraInitializationList,
-                Timestamp = DateTime.UtcNow
-            });
+            return Ok(cameraInitializationList);
         }
         catch (Exception ex)
         {
@@ -68,6 +77,32 @@ public class CameraControllerController : ControllerBase
                 Success = false,
                 ErrorMessage = "Failed to retrieve cameras from persistence",
                 ErrorCode = "PERSISTENCE_ERROR",
+                Timestamp = DateTime.UtcNow
+            });
+        }
+    }
+
+    [HttpGet("settings")]
+    public async Task<ActionResult<CameraMonitoringSettings>> GetCameraMonitoringSettings()
+    {
+        try
+        {
+            _logger.LogDebug("Fetching camera monitoring settings for camera-controller");
+
+            var settings = await _settingsService.GetCameraMonitoringSettingsAsync();
+
+            _logger.LogInformation("Retrieved camera monitoring settings for camera-controller");
+
+            return Ok(settings);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to retrieve camera monitoring settings");
+            return StatusCode(500, new ApiResponse<CameraMonitoringSettings>
+            {
+                Success = false,
+                ErrorMessage = "Failed to retrieve camera monitoring settings",
+                ErrorCode = "SETTINGS_ERROR",
                 Timestamp = DateTime.UtcNow
             });
         }

@@ -1,5 +1,4 @@
 import { ref, reactive, computed } from 'vue';
-import * as signalR from '@microsoft/signalr';
 import { BaseSignalRService } from './baseSignalR';
 import type { 
   Camera, 
@@ -46,7 +45,6 @@ export class CameraManager extends BaseSignalRService {
 
   // Reactive computed properties for easier component access
   public readonly isInitialized = computed(() => this._isInitialized.value);
-  public readonly isConnected = computed(() => this.connectionState.value === signalR.HubConnectionState.Connected);
 
   // Override base class methods
   protected async onConnected(): Promise<void> {

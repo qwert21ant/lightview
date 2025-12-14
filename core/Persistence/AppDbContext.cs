@@ -11,6 +11,7 @@ public class AppDbContext : DbContext
     public DbSet<CameraMetadata> CameraMetadata => Set<CameraMetadata>();
     public DbSet<CameraProfile> CameraProfiles => Set<CameraProfile>();
     public DbSet<CameraSnapshot> CameraSnapshots => Set<CameraSnapshot>();
+    public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<User> Users => Set<User>();
     // Add other DbSets as needed
 
@@ -104,6 +105,17 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.CameraId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+        
+        // Configure SystemSetting entity
+        modelBuilder.Entity<SystemSetting>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Value).IsRequired().HasColumnType("jsonb");
+            entity.Property(e => e.UpdatedAt).IsRequired().HasDefaultValueSql("NOW()");
+            
+            entity.HasIndex(e => e.Name).IsUnique();
         });
         
         // Configure User entity

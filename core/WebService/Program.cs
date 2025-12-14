@@ -4,11 +4,16 @@ using Persistence;
 using WebService.Hubs;
 using WebService.Services;
 using WebService.Authentication;
-using Lightview.Shared.Contracts.Configuration;
-using Lightview.Shared.Contracts.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+
+using SettingsManager.Interfaces;
+using SettingsManager.Services;
+using RabbitMQShared.Extensions;
+using WebService.Services.Initialization;
+using WebService.Services.Auth;
+using WebService.Services.Events;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,19 +33,26 @@ builder.Services.AddPersistence(builder.Configuration);
 builder.Services.AddCameraControllerClient(builder.Configuration);
 builder.Services.AddCameraManager();
 
-// Configure RabbitMQ
-builder.Services.Configure<RabbitMQConfiguration>(builder.Configuration.GetSection(RabbitMQConfiguration.SectionName));
+// Configure RabbitMQ using shared infrastructure
+builder.Services.AddRabbitMQ(builder.Configuration);
+builder.Services.AddRabbitMQConsumer<CameraEventConsumer>();
+builder.Services.AddRabbitMQPublisher();
+builder.Services.AddSingleton<SettingsEventPublisher>();
 
-// Add RabbitMQ services
-builder.Services.AddSingleton<ICameraEventConsumer, RabbitMQCameraEventConsumer>();
+// Add camera event handling
 builder.Services.AddSingleton<CameraEventHandlerService>();
-builder.Services.AddHostedService<CameraEventConsumerService>();
+builder.Services.AddSingleton<SettingsEventPublisher>();
 
 // Add authentication services
 builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<DatabaseInitializer>();
+builder.Services.AddScoped<ISettingsService, SettingsService>();
+builder.Services.AddMemoryCache();
+
+// Add initialization services
+builder.Services.AddInitializableSingleton<DatabaseInitialization>();
+builder.Services.AddInitializableSingleton<SettingsInitializationService>();
 
 // Add JWT Authentication
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"] ?? "your-very-secure-secret-key-that-is-at-least-32-characters-long";
@@ -135,8 +147,8 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Initialize database
-await InitializeDatabaseAsync(app.Services);
+// Initialize all mandatory services before starting the app
+await app.Services.InitializeMandatoryServicesAsync();
 
 // Initialize camera event forwarding service
 InitializeCameraEventHandlerService(app.Services);
@@ -157,6 +169,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<CameraHub>("/cameraHub").RequireCors("AllowFrontend");
+app.MapHub<SettingsHub>("/settingsHub").RequireCors("AllowFrontend");
 
 app.Run();
 
@@ -165,21 +178,4 @@ static void InitializeCameraEventHandlerService(IServiceProvider serviceProvider
     // Initialize the event handler service to ensure event subscriptions are set up
     var eventHandlerService = serviceProvider.GetRequiredService<CameraEventHandlerService>();
     Console.WriteLine("Camera event handler service initialized");
-}
-
-static async Task InitializeDatabaseAsync(IServiceProvider serviceProvider)
-{
-    using var scope = serviceProvider.CreateScope();
-    var initializer = scope.ServiceProvider.GetRequiredService<DatabaseInitializer>();
-    
-    try
-    {
-        await initializer.InitializeAsync();
-    }
-    catch (Exception ex)
-    {
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        logger.LogCritical(ex, "Failed to initialize database. Application will terminate.");
-        throw;
-    }
 }

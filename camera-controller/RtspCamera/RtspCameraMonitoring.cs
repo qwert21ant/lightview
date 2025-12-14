@@ -1,7 +1,6 @@
 using CameraController.Contracts.Interfaces;
 using CameraController.Contracts.Models;
 using Lightview.Shared.Contracts;
-using Lightview.Shared.Contracts.InternalApi;
 using Microsoft.Extensions.Logging;
 
 namespace RtspCamera;
@@ -12,7 +11,7 @@ namespace RtspCamera;
 public class RtspCameraMonitoring : ICameraMonitoring
 {
     private readonly ICamera _camera;
-    private CameraMonitoringConfig _config;
+    private readonly ISettingsService _settingsProvider;
     private readonly ILogger<RtspCameraMonitoring>? _logger;
     private CancellationTokenSource? _monitoringCancellationTokenSource;
     private Task? _monitoringTask;
@@ -31,7 +30,6 @@ public class RtspCameraMonitoring : ICameraMonitoring
     private readonly object _snapshotLock = new();
 
     public ICamera Camera => _camera;
-    public CameraMonitoringConfig Config => _config;
     public bool IsMonitoring => _isMonitoring;
     public DateTime LastHealthCheck { get; private set; }
     public CameraHealthStatus LastHealthStatus { get; private set; } = new();
@@ -39,11 +37,11 @@ public class RtspCameraMonitoring : ICameraMonitoring
 
     public RtspCameraMonitoring(
         ICamera camera, 
-        CameraMonitoringConfig config, 
+        ISettingsService settingsProvider, 
         ILogger<RtspCameraMonitoring>? logger = null)
     {
         _camera = camera ?? throw new ArgumentNullException(nameof(camera));
-        _config = config ?? throw new ArgumentNullException(nameof(config));
+        _settingsProvider = settingsProvider ?? throw new ArgumentNullException(nameof(settingsProvider));
         _logger = logger;
     }
 
@@ -211,7 +209,7 @@ public class RtspCameraMonitoring : ICameraMonitoring
                 // Wait for the configured interval before next check
                 try
                 {
-                    await Task.Delay(_config.HealthCheckInterval, cancellationToken);
+                    await Task.Delay(_settingsProvider.CameraMonitoringSettings.HealthCheckInterval * 1000, cancellationToken);
                 }
                 catch (OperationCanceledException)
                 {
@@ -282,10 +280,10 @@ public class RtspCameraMonitoring : ICameraMonitoring
     private async Task TryCaptureSnapshotAsync(CancellationToken cancellationToken)
     {
         try
-        {                
+        {
             // Check if it's time for the next snapshot
             var timeSinceLastSnapshot = DateTime.UtcNow - _lastSnapshotCapture;
-            if (timeSinceLastSnapshot < _config.SnapshotInterval)
+                if (timeSinceLastSnapshot < TimeSpan.FromSeconds(_settingsProvider.CameraMonitoringSettings.SnapshotInterval))
                 return;
                 
             // Only capture snapshots if camera is online
@@ -299,7 +297,7 @@ public class RtspCameraMonitoring : ICameraMonitoring
             _logger?.LogDebug("Capturing scheduled snapshot for camera {CameraId}", _camera.Id);
             
             var captureStartTime = DateTime.UtcNow;
-            var snapshotBytes = await _camera.CaptureSnapshotAsync(_config.SnapshotProfileToken, cancellationToken);
+            var snapshotBytes = await _camera.CaptureSnapshotAsync("default", cancellationToken); // TODO: profile token
             var captureTime = DateTime.UtcNow - captureStartTime;
             
             if (snapshotBytes != null && snapshotBytes.Length > 0)
@@ -312,7 +310,7 @@ public class RtspCameraMonitoring : ICameraMonitoring
                 {
                     _latestSnapshotData = snapshotBytes;
                     _latestSnapshotTimestamp = captureTimestamp;
-                    _latestSnapshotProfileToken = _config.SnapshotProfileToken;
+                    _latestSnapshotProfileToken = "default"; // TODO: profile token
                 }
                 
                 _logger?.LogInformation("Snapshot captured for camera {CameraId}: {ImageSize} bytes, capture took {CaptureTime}ms", 
@@ -323,7 +321,7 @@ public class RtspCameraMonitoring : ICameraMonitoring
                 {
                     CameraId = _camera.Id,
                     SnapshotData = snapshotBytes,
-                    ProfileToken = _config.SnapshotProfileToken,
+                    ProfileToken = "default", // TODO: profile token
                     CaptureTime = captureTime
                 });
             }
@@ -336,15 +334,6 @@ public class RtspCameraMonitoring : ICameraMonitoring
         {
             _logger?.LogError(ex, "Error capturing scheduled snapshot for camera {CameraId}", _camera.Id);
         }
-    }
-
-    public void UpdateConfig(CameraMonitoringConfig config)
-    {
-        _config = config ?? throw new ArgumentNullException(nameof(config));
-        
-        // Note: The new configuration will be picked up on the next health check cycle
-        // The monitoring loop reads _config.HealthCheckInterval for each delay
-        _logger?.LogDebug("Updated monitoring configuration for camera {CameraId}", _camera.Id);
     }
 
     public void Dispose()

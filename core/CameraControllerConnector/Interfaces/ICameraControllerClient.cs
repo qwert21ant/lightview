@@ -59,11 +59,6 @@ public interface ICameraControllerClient
     Task<(byte[]? ImageData, DateTime? CapturedAt, string? ProfileToken)> GetLatestSnapshotAsync(Guid cameraId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Get WebRTC stream URL for a camera
-    /// </summary>
-    Task<string?> GetWebRtcStreamUrlAsync(Guid cameraId, CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Move PTZ camera
     /// </summary>
     Task<PtzMoveResponse> MovePtzAsync(Guid cameraId, PtzMoveRequest request, CancellationToken cancellationToken = default);

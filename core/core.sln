@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Persistence", "Persistence\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CameraManager", "CameraManager\CameraManager.csproj", "{4F46DD53-8710-47FB-98AA-14F42425C1AF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SettingsManager", "SettingsManager\SettingsManager.csproj", "{BB347B6A-034F-486E-88AC-E6291B56B290}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -69,6 +71,18 @@ Global
 		{4F46DD53-8710-47FB-98AA-14F42425C1AF}.Release|x64.Build.0 = Release|Any CPU
 		{4F46DD53-8710-47FB-98AA-14F42425C1AF}.Release|x86.ActiveCfg = Release|Any CPU
 		{4F46DD53-8710-47FB-98AA-14F42425C1AF}.Release|x86.Build.0 = Release|Any CPU
+		{BB347B6A-034F-486E-88AC-E6291B56B290}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BB347B6A-034F-486E-88AC-E6291B56B290}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BB347B6A-034F-486E-88AC-E6291B56B290}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{BB347B6A-034F-486E-88AC-E6291B56B290}.Debug|x64.Build.0 = Debug|Any CPU
+		{BB347B6A-034F-486E-88AC-E6291B56B290}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{BB347B6A-034F-486E-88AC-E6291B56B290}.Debug|x86.Build.0 = Debug|Any CPU
+		{BB347B6A-034F-486E-88AC-E6291B56B290}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BB347B6A-034F-486E-88AC-E6291B56B290}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BB347B6A-034F-486E-88AC-E6291B56B290}.Release|x64.ActiveCfg = Release|Any CPU
+		{BB347B6A-034F-486E-88AC-E6291B56B290}.Release|x64.Build.0 = Release|Any CPU
+		{BB347B6A-034F-486E-88AC-E6291B56B290}.Release|x86.ActiveCfg = Release|Any CPU
+		{BB347B6A-034F-486E-88AC-E6291B56B290}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

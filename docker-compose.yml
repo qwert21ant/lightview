@@ -86,11 +86,12 @@ services:
       - MTX_AUTHINTERNALUSERS_0_PERMISSIONS_0_ACTION=api
     ports:
       - "8554:8554"  # TCP/RTSP
-      - "8000:8000"  # UDP/RTP
-      - "8001:8001"  # UDP/RTCP
+      - "8000:8000/udp"  # UDP/RTP
+      - "8001:8001/udp"  # UDP/RTCP
       - "8889:8889"  # WebRTC
       - "7777:7777/udp"  # WebRTC local UDP
       - "9997:9997"  # API
+    # network_mode: "host"
     volumes:
       - ./mediamtx.yml:/mediamtx.yml:ro
     restart: unless-stopped

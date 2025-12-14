@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace WebService.Services;
+namespace WebService.Services.Auth;
 
 public interface IPasswordService
 {

@@ -1,6 +1,6 @@
 using Lightview.Shared.Contracts;
 using CameraController.Contracts.Models;
-using Lightview.Shared.Contracts.InternalApi;
+using Lightview.Shared.Contracts.Settings;
 
 namespace CameraController.Contracts.Interfaces;
 
@@ -13,11 +13,6 @@ public interface ICameraMonitoring : IDisposable
     /// The camera being monitored
     /// </summary>
     ICamera Camera { get; }
-    
-    /// <summary>
-    /// Monitoring configuration
-    /// </summary>
-    CameraMonitoringConfig Config { get; }
     
     /// <summary>
     /// Whether monitoring is currently active
@@ -43,11 +38,6 @@ public interface ICameraMonitoring : IDisposable
     /// Perform immediate health check
     /// </summary>
     Task<CameraHealthStatus> CheckHealthAsync(CancellationToken cancellationToken = default);
-    
-    /// <summary>
-    /// Update monitoring configuration
-    /// </summary>
-    void UpdateConfig(CameraMonitoringConfig config);
     
     /// <summary>
     /// Event raised when a snapshot is captured during monitoring

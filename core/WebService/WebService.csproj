@@ -8,18 +8,20 @@
 
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.7" />
-    <PackageReference Include="RabbitMQ.Client" Version="6.8.1" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.7" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.2.1" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.11" />
+    <PackageReference Include="RabbitMQ.Client" Version="7.2.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.6" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.11" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Persistence\Persistence.csproj" />
     <ProjectReference Include="..\CameraControllerConnector\CameraControllerConnector.csproj" />
     <ProjectReference Include="..\CameraManager\CameraManager.csproj" />
+    <ProjectReference Include="..\SettingsManager\SettingsManager.csproj" />
     <ProjectReference Include="..\..\shared\SharedContracts\SharedContracts.csproj" />
+    <ProjectReference Include="..\..\shared\RabbitMQShared\RabbitMQShared.csproj" />
   </ItemGroup>
 
 </Project>

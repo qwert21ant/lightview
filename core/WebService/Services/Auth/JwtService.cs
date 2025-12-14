@@ -4,7 +4,7 @@ using System.Text;
 using Microsoft.IdentityModel.Tokens;
 using Persistence.Models;
 
-namespace WebService.Services;
+namespace WebService.Services.Auth;
 
 public interface IJwtService
 {

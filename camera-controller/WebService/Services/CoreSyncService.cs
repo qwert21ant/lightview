@@ -1,50 +1,43 @@
-using System.Net.Http.Json;
-using System.Text.Json;
-using Lightview.Shared.Contracts;
 using Lightview.Shared.Contracts.InternalApi;
+using Lightview.Shared.Contracts;
 using CameraController.Contracts.Interfaces;
-using CameraController.Contracts.Models;
 using WebService.Configuration;
+using RabbitMQShared.Interfaces;
+using CoreConnector;
 
 namespace WebService.Services;
 
 /// <summary>
 /// Background service that initializes camera monitoring on startup by fetching cameras from core service
 /// </summary>
-public class CoreSyncService : BackgroundService
+public class CoreSyncService : IInitializable
 {
     private readonly ILogger<CoreSyncService> _logger;
-    private readonly HttpClient _httpClient;
+    private readonly ICoreConnector _coreConnector;
     private readonly ICameraService _cameraService;
     private readonly CoreServiceConfiguration _config;
-    private readonly JsonSerializerOptions _jsonOptions;
     private readonly IHostApplicationLifetime _applicationLifetime;
+    private readonly ISettingsService _settingsService;
 
     public CoreSyncService(
         ILogger<CoreSyncService> logger,
-        IHttpClientFactory httpClientFactory,
+        ICoreConnector coreConnector,
         ICameraService cameraService,
         CoreServiceConfiguration config,
+        ISettingsService settingsService,
         IHostApplicationLifetime applicationLifetime)
     {
         _logger = logger;
-        _httpClient = httpClientFactory.CreateClient();
+        _coreConnector = coreConnector;
         _cameraService = cameraService;
         _config = config;
+        _settingsService = settingsService;
         _applicationLifetime = applicationLifetime;
-
-        _httpClient.BaseAddress = new Uri(_config.BaseUrl);
-        _httpClient.Timeout = TimeSpan.FromSeconds(_config.TimeoutSeconds);
-        _httpClient.DefaultRequestHeaders.Add("X-API-Key", _config.ApiKey);
-        
-        _jsonOptions = new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            PropertyNameCaseInsensitive = true
-        };
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    public string ServiceName => "Core Sync Service";
+
+    public async Task InitializeAsync(CancellationToken stoppingToken = default)
     {
         _logger.LogInformation("CoreSyncService starting - waiting to connect to core service at {BaseUrl}", _config.BaseUrl);
         
@@ -57,6 +50,17 @@ public class CoreSyncService : BackgroundService
         }
 
         _logger.LogInformation("Successfully connected to core service");
+
+        // Fetch and cache camera monitoring settings
+        var settings = await _coreConnector.GetCameraMonitoringSettingsAsync(stoppingToken);
+        if (settings == null)
+        {
+            _logger.LogCritical("Failed to retrieve camera monitoring settings from core service. Camera-controller cannot function without these settings. Shutting down application.");
+            _applicationLifetime.StopApplication();
+            return;
+        }
+        _settingsService.CameraMonitoringSettings = settings;
+        _logger.LogInformation("Successfully fetched and cached camera monitoring settings");
 
         // Fetch cameras from core service
         var cameras = await FetchCamerasFromCoreAsync(stoppingToken);
@@ -99,15 +103,13 @@ public class CoreSyncService : BackgroundService
             {
                 _logger.LogDebug("Attempting to connect to core service (attempt {Attempt}/{MaxAttempts})", attempt, _config.RetryAttempts);
                 
-                var response = await _httpClient.GetAsync("/api/CameraController/cameras", cancellationToken);
-                
-                if (response.IsSuccessStatusCode)
+                var healthy = await _coreConnector.IsHealthyAsync(cancellationToken);
+                if (healthy)
                 {
                     _logger.LogInformation("Successfully connected to core service on attempt {Attempt}", attempt);
                     return true;
                 }
-                
-                _logger.LogWarning("Core service returned {StatusCode} on attempt {Attempt}", response.StatusCode, attempt);
+                _logger.LogWarning("Core service is not healthy on attempt {Attempt}", attempt);
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
@@ -126,29 +128,16 @@ public class CoreSyncService : BackgroundService
 
     private async Task<List<CameraInitializationResponse>?> FetchCamerasFromCoreAsync(CancellationToken cancellationToken)
     {
-        try
+        var cameras = await _coreConnector.GetCamerasAsync(cancellationToken);
+        if (cameras != null)
         {
-            _logger.LogDebug("Fetching cameras from core service at {Url}", $"{_config.BaseUrl}/api/CameraController/cameras");
-            
-            var response = await _httpClient.GetAsync("/api/CameraController/cameras", cancellationToken);
-            response.EnsureSuccessStatusCode();
-
-            var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<CameraInitializationResponse>>>(_jsonOptions, cancellationToken);
-            
-            if (apiResponse?.Success == true && apiResponse.Data != null)
-            {
-                _logger.LogInformation("Successfully fetched {Count} cameras from core service", apiResponse.Data.Count);
-                return apiResponse.Data;
-            }
-
-            _logger.LogWarning("Core service returned unsuccessful response: {Error}", apiResponse?.ErrorMessage);
-            return null;
+            _logger.LogInformation("Successfully fetched {Count} cameras from core service", cameras.Count);
         }
-        catch (Exception ex)
+        else
         {
-            _logger.LogError(ex, "Failed to fetch cameras from core service");
-            return null;
+            _logger.LogWarning("Core service returned no cameras or an error occurred");
         }
+        return cameras;
     }
 
     private async Task InitializeCameraAsync(CameraInitializationResponse cameraInit, CancellationToken cancellationToken)
@@ -180,22 +169,8 @@ public class CoreSyncService : BackgroundService
                 Capabilities = cameraInit.Capabilities
             };
 
-            // Add camera with monitoring enabled
-            var monitoringConfig = new CameraMonitoringConfig
-            {
-                Enabled = true,
-                HealthCheckInterval = TimeSpan.FromMinutes(1),
-                HealthCheckTimeout = TimeSpan.FromSeconds(10),
-                FailureThreshold = 3,
-                SuccessThreshold = 2,
-                AutoReconnect = true,
-                MaxReconnectAttempts = 5,
-                ReconnectDelay = TimeSpan.FromSeconds(30),
-                PublishHealthEvents = true,
-                PublishStatistics = false
-            };
-
-            await _cameraService.AddCameraAsync(camera, monitoringConfig);
+            // Add camera; monitoring configuration is applied internally using cached settings
+            await _cameraService.AddCameraAsync(camera);
             
             // Auto-start monitoring and connection for cameras that were not offline
             if (cameraInit.Status != CameraStatus.Offline)

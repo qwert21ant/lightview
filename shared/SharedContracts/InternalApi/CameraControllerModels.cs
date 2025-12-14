@@ -11,7 +11,6 @@ public class AddCameraRequest
     public required string Password { get; set; }
     public CameraProtocol Protocol { get; set; } = CameraProtocol.Onvif;
     public bool AutoConnect { get; set; } = true;
-    public CameraMonitoringConfig? MonitoringConfig { get; set; }
 }
 
 /// <summary>
@@ -41,85 +40,4 @@ public class CameraStatusResponse
     public CameraDeviceInfo? DeviceInfo { get; set; }
     public CameraCapabilities? Capabilities { get; set; }
     public int ProfileCount { get; set; }
-}
-
-/// <summary>
-/// Request to get WebRTC stream URL
-/// </summary>
-public class GetStreamRequest
-{
-    public Guid CameraId { get; set; }
-    public string? ProfileToken { get; set; }
-}
-
-/// <summary>
-/// Response with stream URL
-/// </summary>
-public class StreamUrlResponse
-{
-    public required string Url { get; set; }
-    public string? Protocol { get; set; }
-}
-
-/// <summary>
-/// Camera monitoring configuration
-/// </summary>
-public class CameraMonitoringConfig
-{
-    public bool Enabled { get; set; } = true;
-    
-    /// <summary>
-    /// Interval between health checks
-    /// </summary>
-    public TimeSpan HealthCheckInterval { get; set; } = TimeSpan.FromMinutes(1);
-    
-    /// <summary>
-    /// Timeout for individual health checks
-    /// </summary>
-    public TimeSpan HealthCheckTimeout { get; set; } = TimeSpan.FromSeconds(10);
-    
-    /// <summary>
-    /// Number of consecutive failures before marking as unhealthy
-    /// </summary>
-    public int FailureThreshold { get; set; } = 3;
-    
-    /// <summary>
-    /// Number of consecutive successes before marking as healthy again
-    /// </summary>
-    public int SuccessThreshold { get; set; } = 2;
-    
-    /// <summary>
-    /// Whether to attempt automatic reconnection on failures
-    /// </summary>
-    public bool AutoReconnect { get; set; } = true;
-    
-    /// <summary>
-    /// Maximum number of reconnection attempts
-    /// </summary>
-    public int MaxReconnectAttempts { get; set; } = 5;
-    
-    /// <summary>
-    /// Delay between reconnection attempts
-    /// </summary>
-    public TimeSpan ReconnectDelay { get; set; } = TimeSpan.FromSeconds(30);
-    
-    /// <summary>
-    /// Whether to publish health events to RabbitMQ
-    /// </summary>
-    public bool PublishHealthEvents { get; set; } = true;
-    
-    /// <summary>
-    /// Whether to publish detailed statistics
-    /// </summary>
-    public bool PublishStatistics { get; set; } = false;
-    
-    /// <summary>
-    /// Interval between snapshot captures
-    /// </summary>
-    public TimeSpan SnapshotInterval { get; set; } = TimeSpan.FromMinutes(2);
-    
-    /// <summary>
-    /// Profile token to use for snapshot capture (null for default)
-    /// </summary>
-    public string? SnapshotProfileToken { get; set; }
 }

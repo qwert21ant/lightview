@@ -1,5 +1,5 @@
 using CameraController.Contracts.Interfaces;
-using Lightview.Shared.Contracts.InternalApi;
+using Lightview.Shared.Contracts.Settings;
 
 namespace WebService.Factories;
 
@@ -8,5 +8,5 @@ namespace WebService.Factories;
 /// </summary>
 public interface ICameraMonitoringFactory
 {
-    ICameraMonitoring CreateMonitoring(ICamera camera, CameraMonitoringConfig config);
+    ICameraMonitoring CreateMonitoring(ICamera camera);
 }

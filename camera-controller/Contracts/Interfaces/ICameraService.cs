@@ -22,7 +22,7 @@ public interface ICameraService
     /// <summary>
     /// Add and start monitoring a new camera
     /// </summary>
-    Task<ICameraMonitoring> AddCameraAsync(Camera cameraConfig, CameraMonitoringConfig? monitoringConfig = null);
+    Task<ICameraMonitoring> AddCameraAsync(Camera cameraConfig);
     
     /// <summary>
     /// Remove camera and stop monitoring

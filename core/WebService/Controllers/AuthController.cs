@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using SharedContracts.Auth;
-using WebService.Services;
+using WebService.Services.Auth;
 
 namespace WebService.Controllers;
 

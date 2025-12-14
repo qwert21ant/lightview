@@ -1,38 +1,43 @@
 using Microsoft.EntityFrameworkCore;
 using Persistence;
 using Persistence.Models;
+using RabbitMQShared.Interfaces;
+using WebService.Services.Auth;
 
-namespace WebService.Services;
+namespace WebService.Services.Initialization;
 
-public class DatabaseInitializer
+public class DatabaseInitialization : IInitializable
 {
-    private readonly AppDbContext _context;
-    private readonly IPasswordService _passwordService;
+    private readonly IServiceProvider _serviceProvider;
     private readonly IConfiguration _configuration;
-    private readonly ILogger<DatabaseInitializer> _logger;
+    private readonly ILogger<DatabaseInitialization> _logger;
 
-    public DatabaseInitializer(
-        AppDbContext context, 
-        IPasswordService passwordService, 
+    public string ServiceName => "Database Initialization";
+
+    public DatabaseInitialization(
+        IServiceProvider serviceProvider, 
         IConfiguration configuration,
-        ILogger<DatabaseInitializer> logger)
+        ILogger<DatabaseInitialization> logger)
     {
-        _context = context;
-        _passwordService = passwordService;
+        _serviceProvider = serviceProvider;
         _configuration = configuration;
         _logger = logger;
     }
 
-    public async Task InitializeAsync()
+    public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         try
         {
+            using var scope = _serviceProvider.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var passwordService = scope.ServiceProvider.GetRequiredService<IPasswordService>();
+
             // Ensure database is created
-            await _context.Database.EnsureCreatedAsync();
+            await context.Database.EnsureCreatedAsync(cancellationToken);
             _logger.LogInformation("Database created/verified successfully");
 
             // Create admin user if it doesn't exist
-            await CreateAdminUserAsync();
+            await CreateAdminUserAsync(context, passwordService);
             
             _logger.LogInformation("Database initialization completed successfully");
         }
@@ -43,7 +48,7 @@ public class DatabaseInitializer
         }
     }
 
-    private async Task CreateAdminUserAsync()
+    private async Task CreateAdminUserAsync(AppDbContext context, IPasswordService passwordService)
     {
         var adminUsername = _configuration["Admin:Username"] ?? "admin";
         var adminPassword = _configuration["Admin:Password"];
@@ -54,7 +59,7 @@ public class DatabaseInitializer
             return;
         }
 
-        var existingAdmin = await _context.Users
+        var existingAdmin = await context.Users
             .FirstOrDefaultAsync(u => u.Username == adminUsername);
 
         if (existingAdmin != null)
@@ -67,13 +72,13 @@ public class DatabaseInitializer
         {
             Id = Guid.NewGuid(),
             Username = adminUsername,
-            PasswordHash = _passwordService.HashPassword(adminPassword),
+            PasswordHash = passwordService.HashPassword(adminPassword),
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         };
 
-        _context.Users.Add(adminUser);
-        await _context.SaveChangesAsync();
+        context.Users.Add(adminUser);
+        await context.SaveChangesAsync();
 
         _logger.LogInformation("Admin user created successfully with username: {Username}", adminUsername);
     }

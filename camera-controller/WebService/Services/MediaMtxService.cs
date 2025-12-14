@@ -74,6 +74,7 @@ public class MediaMtxService : IMediaMtxService
                 {
                     name = streamPath,
                     source = profile.OriginFeedUri.ToString(),
+                    sourceOnDemand = true,
                 };
 
                 var json = JsonSerializer.Serialize(pathConfig, _jsonOptions);

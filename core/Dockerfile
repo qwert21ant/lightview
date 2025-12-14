@@ -5,6 +5,7 @@ WORKDIR /src
 # Copy project files and restore dependencies
 # Copy shared contracts first
 COPY shared/SharedContracts/SharedContracts.csproj shared/SharedContracts/
+COPY shared/RabbitMQShared/RabbitMQShared.csproj shared/RabbitMQShared/
 
 # Copy core projects
 COPY core/WebService/WebService.csproj core/WebService/
@@ -17,8 +18,10 @@ RUN dotnet restore core/WebService/WebService.csproj
 
 # Copy source code
 COPY shared/SharedContracts/ shared/SharedContracts/
+COPY shared/RabbitMQShared/ shared/RabbitMQShared/
 COPY core/CameraControllerConnector/ core/CameraControllerConnector/
 COPY core/Persistence/ core/Persistence/
+COPY core/SettingsManager/ core/SettingsManager/
 COPY core/CameraManager/ core/CameraManager/
 COPY core/WebService/ core/WebService/
 

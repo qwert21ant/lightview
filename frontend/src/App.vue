@@ -37,6 +37,8 @@ import { RouterView, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { CameraManager } from '@/services/cameraManager'
 import { CAMERA_MANAGER_KEY } from '@/composables/useCamera'
+import { SettingsHubService } from '@/services/settingsHubService'
+import { SETTINGS_HUB_KEY } from '@/composables/useSettings'
 import { NotificationService } from '@/services/notificationService'
 import { NOTIFICATION_SERVICE_KEY } from '@/composables/useNotifications'
 import AppHeader from '@/components/AppHeader.vue'
@@ -52,6 +54,12 @@ const cameraManager = new CameraManager()
 window.__cameraManager = cameraManager // For debugging
 provide(CAMERA_MANAGER_KEY, cameraManager)
 
+// Create and provide SettingsHubService instance
+const settingsHubService = new SettingsHubService()
+// @ts-ignore
+window.__settingsHubService = settingsHubService // For debugging
+provide(SETTINGS_HUB_KEY, settingsHubService)
+
 // Create and provide NotificationService instance
 const notificationService = new NotificationService()
 provide(NOTIFICATION_SERVICE_KEY, notificationService)
@@ -65,6 +73,7 @@ const showMainLayout = computed(() => {
 onMounted(() => {
   if (isAuthenticated.value) {
     initializeCameraManager()
+    initializeSettingsHub()
   }
 })
 
@@ -72,6 +81,7 @@ onMounted(() => {
 watch(isAuthenticated, (newValue) => {
   if (newValue) {
     initializeCameraManager()
+    initializeSettingsHub()
   } else {
     disconnectFromHub()
   }
@@ -126,6 +136,18 @@ async function initializeCameraManager() {
   }
 }
 
+async function initializeSettingsHub() {
+  try {
+    if (!settingsHubService.isConnected.value) {
+      console.log('Initializing Settings Hub...')
+      await settingsHubService.connect()
+      console.log('Successfully connected to Settings Hub')
+    }
+  } catch (error) {
+    console.error('Failed to initialize Settings Hub:', error)
+  }
+}
+
 async function disconnectFromHub() {
   try {
     if (cameraManager.isConnected.value) {
@@ -135,8 +157,13 @@ async function disconnectFromHub() {
       cameraManager.cameras.value = []
       console.log('Successfully disconnected from Camera Hub')
     }
+    if (settingsHubService.isConnected.value) {
+      console.log('Disconnecting from Settings Hub...')
+      await settingsHubService.disconnect()
+      console.log('Successfully disconnected from Settings Hub')
+    }
   } catch (error) {
-    console.error('Failed to disconnect from Camera Hub:', error)
+    console.error('Failed to disconnect from hubs:', error)
   }
 }
 

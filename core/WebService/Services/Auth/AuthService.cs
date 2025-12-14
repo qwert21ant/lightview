@@ -4,7 +4,7 @@ using Persistence.Models;
 using SharedContracts.Auth;
 using WebService.Services;
 
-namespace WebService.Services;
+namespace WebService.Services.Auth;
 
 public interface IAuthService
 {

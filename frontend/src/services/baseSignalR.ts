@@ -1,5 +1,5 @@
 import * as signalR from '@microsoft/signalr';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { authService } from './auth';
 import { API_BASE_URL } from '@/config/api';
 
@@ -12,6 +12,8 @@ export abstract class BaseSignalRService {
   public connectionState = ref<signalR.HubConnectionState>(signalR.HubConnectionState.Disconnected);
   public isConnecting = ref(false);
   public connectionError = ref<string | null>(null);
+
+  public readonly isConnected = computed(() => this.connectionState.value === signalR.HubConnectionState.Connected);
 
   async connect(): Promise<void> {
     if (this.connection?.state === signalR.HubConnectionState.Connected) {

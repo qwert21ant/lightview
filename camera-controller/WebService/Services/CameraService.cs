@@ -1,11 +1,10 @@
 using System.Collections.Concurrent;
 using Lightview.Shared.Contracts;
 using Lightview.Shared.Contracts.Events;
-using Lightview.Shared.Contracts.Interfaces;
 using CameraController.Contracts.Interfaces;
 using CameraController.Contracts.Models;
 using WebService.Factories;
-using Lightview.Shared.Contracts.InternalApi;
+using WebService.Services.Events;
 
 namespace WebService.Services;
 
@@ -15,11 +14,29 @@ namespace WebService.Services;
 public class CameraService : ICameraService, IDisposable
 {
     private readonly ILogger<CameraService> _logger;
-    private readonly ICameraEventPublisher _eventPublisher;
+    private readonly CameraEventPublisher _eventPublisher;
     private readonly IMediaMtxService _mediaMtxService;
+    private readonly ICameraFactory _cameraFactory;
+    private readonly ICameraMonitoringFactory _monitoringFactory;
     private readonly ConcurrentDictionary<Guid, ICameraMonitoring> _managedCameras;
     private readonly SemaphoreSlim _operationSemaphore;
     private bool _disposed;
+
+    public CameraService(
+        ILogger<CameraService> logger, 
+        CameraEventPublisher eventPublisher,
+        IMediaMtxService mediaMtxService,
+        ICameraFactory cameraFactory,
+        ICameraMonitoringFactory monitoringFactory)
+    {
+        _logger = logger;
+        _eventPublisher = eventPublisher;
+        _mediaMtxService = mediaMtxService;
+        _cameraFactory = cameraFactory;
+        _monitoringFactory = monitoringFactory;
+        _managedCameras = new ConcurrentDictionary<Guid, ICameraMonitoring>();
+        _operationSemaphore = new SemaphoreSlim(1, 1);
+    }
 
     public IReadOnlyDictionary<Guid, ICameraMonitoring> GetAllCameras()
     {
@@ -31,7 +48,7 @@ public class CameraService : ICameraService, IDisposable
         return _managedCameras.TryGetValue(cameraId, out var camera) ? camera : null;
     }
 
-    public async Task<ICameraMonitoring> AddCameraAsync(Camera cameraConfig, CameraMonitoringConfig? monitoringConfig = null)
+    public async Task<ICameraMonitoring> AddCameraAsync(Camera cameraConfig)
     {
         await _operationSemaphore.WaitAsync();
         try
@@ -48,7 +65,7 @@ public class CameraService : ICameraService, IDisposable
             var camera = CreateCameraInstance(cameraConfig);
             
             // Create monitoring wrapper with configuration
-            var monitoring = CreateMonitoringInstance(camera, monitoringConfig ?? new CameraMonitoringConfig());
+            var monitoring = CreateMonitoringInstance(camera);
             
             // Subscribe to camera events
             SubscribeToCameraEvents(camera);
@@ -229,25 +246,6 @@ public class CameraService : ICameraService, IDisposable
         return summary;
     }
 
-    private readonly ICameraFactory _cameraFactory;
-    private readonly ICameraMonitoringFactory _monitoringFactory;
-
-    public CameraService(
-        ILogger<CameraService> logger, 
-        ICameraEventPublisher eventPublisher,
-        IMediaMtxService mediaMtxService,
-        ICameraFactory cameraFactory,
-        ICameraMonitoringFactory monitoringFactory)
-    {
-        _logger = logger;
-        _eventPublisher = eventPublisher;
-        _mediaMtxService = mediaMtxService;
-        _cameraFactory = cameraFactory;
-        _monitoringFactory = monitoringFactory;
-        _managedCameras = new ConcurrentDictionary<Guid, ICameraMonitoring>();
-        _operationSemaphore = new SemaphoreSlim(1, 1);
-    }
-
     /// <summary>
     /// Create camera instance using factory
     /// </summary>
@@ -259,9 +257,9 @@ public class CameraService : ICameraService, IDisposable
     /// <summary>
     /// Create monitoring instance using factory
     /// </summary>
-    private ICameraMonitoring CreateMonitoringInstance(ICamera camera, CameraMonitoringConfig config)
+    private ICameraMonitoring CreateMonitoringInstance(ICamera camera)
     {
-        var monitoring = _monitoringFactory.CreateMonitoring(camera, config);
+        var monitoring = _monitoringFactory.CreateMonitoring(camera);
         
         monitoring.SnapshotCaptured += OnCameraSnapshotCaptured;
         
@@ -277,7 +275,7 @@ public class CameraService : ICameraService, IDisposable
                 CameraId = camera.Id,
                 PreviousStatus = args.PreviousStatus,
                 CurrentStatus = args.CurrentStatus,
-                Reason = args.Reason
+                Reason = args.Reason ?? ""
             });
 
             // Publish camera metadata when camera comes online

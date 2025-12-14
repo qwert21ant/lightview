@@ -103,28 +103,8 @@ public class CamerasController : ControllerBase
                 Status = CameraStatus.Offline,
                 CreatedAt = DateTime.UtcNow
             };
-
-            CameraMonitoringConfig? monitoringConfig = null;
-            if (request.MonitoringConfig != null)
-            {
-                monitoringConfig = new CameraMonitoringConfig
-                {
-                    Enabled = request.MonitoringConfig.Enabled,
-                    HealthCheckInterval = request.MonitoringConfig.HealthCheckInterval,
-                    HealthCheckTimeout = request.MonitoringConfig.HealthCheckTimeout,
-                    FailureThreshold = request.MonitoringConfig.FailureThreshold,
-                    SuccessThreshold = request.MonitoringConfig.SuccessThreshold,
-                    AutoReconnect = request.MonitoringConfig.AutoReconnect,
-                    MaxReconnectAttempts = request.MonitoringConfig.MaxReconnectAttempts,
-                    ReconnectDelay = request.MonitoringConfig.ReconnectDelay,
-                    PublishHealthEvents = request.MonitoringConfig.PublishHealthEvents,
-                    PublishStatistics = request.MonitoringConfig.PublishStatistics,
-                    SnapshotInterval = request.MonitoringConfig.SnapshotInterval,
-                    SnapshotProfileToken = request.MonitoringConfig.SnapshotProfileToken
-                };
-            }
             
-            var monitoring = await _cameraService.AddCameraAsync(camera, monitoringConfig);
+            var monitoring = await _cameraService.AddCameraAsync(camera);
 
             var response = new Camera
             {

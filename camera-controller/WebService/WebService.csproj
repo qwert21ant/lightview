@@ -7,13 +7,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="RabbitMQ.Client" Version="6.8.1" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.6" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Contracts\Contracts.csproj" />
     <ProjectReference Include="..\..\shared\SharedContracts\SharedContracts.csproj" />
+    <ProjectReference Include="..\..\shared\RabbitMQShared\RabbitMQShared.csproj" />
+    <ProjectReference Include="..\CoreConnector\CoreConnector.csproj" />
     <ProjectReference Include="..\RtspCamera\RtspCamera.csproj" />
   </ItemGroup>
 

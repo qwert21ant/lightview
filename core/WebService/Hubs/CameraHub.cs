@@ -209,25 +209,6 @@ public class CameraHub : Hub
         }
     }
 
-    public async Task<StreamUrlResponse?> GetStreamUrl(string cameraId, string? profileToken = null)
-    {
-        try
-        {
-            if (!Guid.TryParse(cameraId, out var id))
-            {
-                throw new HubException("Invalid camera ID format");
-            }
-
-            _logger.LogDebug("GetStreamUrl called for {CameraId} by {ConnectionId}", cameraId, Context.ConnectionId);
-            return await _cameraService.GetStreamUrlAsync(id, profileToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting stream URL for camera {CameraId}", cameraId);
-            throw new HubException($"Failed to get stream URL for camera {cameraId}");
-        }
-    }
-
     // PTZ Operations
     public async Task<PtzMoveResponse?> MovePtz(string cameraId, PtzMoveRequest request)
     {

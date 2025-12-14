@@ -1,10 +1,9 @@
-using Lightview.Shared.Contracts;
 using Lightview.Shared.Contracts.Events;
-using Lightview.Shared.Contracts.Interfaces;
 using Lightview.Shared.Contracts.SignalRModels;
 using Microsoft.AspNetCore.SignalR;
 using CameraManager.Interfaces;
 using WebService.Hubs;
+using WebService.Services.Events;
 
 namespace WebService.Services;
 
@@ -14,14 +13,14 @@ namespace WebService.Services;
 /// </summary>
 public class CameraEventHandlerService : IDisposable
 {
-    private readonly ICameraEventConsumer _eventConsumer;
+    private readonly CameraEventConsumer _eventConsumer;
     private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly IHubContext<CameraHub> _hubContext;
     private readonly ILogger<CameraEventHandlerService> _logger;
     private bool _disposed;
 
     public CameraEventHandlerService(
-        ICameraEventConsumer eventConsumer,
+        CameraEventConsumer eventConsumer,
         IServiceScopeFactory serviceScopeFactory,
         IHubContext<CameraHub> hubContext,
         ILogger<CameraEventHandlerService> logger)
