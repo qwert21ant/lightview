@@ -4,7 +4,7 @@ import type { CameraMonitoringSettings } from '@/models/settings'
 
 type SettingsUpdatedHandler = (s: CameraMonitoringSettings) => void
 
-export class SettingsHubService extends BaseSignalRService {
+export class SettingsManager extends BaseSignalRService {
   protected hubPath = '/settingsHub'
   private handlers: Set<SettingsUpdatedHandler> = new Set()
 

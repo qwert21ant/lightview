@@ -5,7 +5,6 @@ import { API_BASE_URL } from '@/config/api';
 
 export abstract class BaseSignalRService {
   protected connection: signalR.HubConnection | null = null;
-  protected maxReconnectAttempts = 5;
   protected abstract hubPath: string;
 
   // Reactive state - shared across all SignalR services
@@ -39,12 +38,7 @@ export abstract class BaseSignalRService {
           transport: signalR.HttpTransportType.WebSockets,
         })
         .withAutomaticReconnect({
-          nextRetryDelayInMilliseconds: (retryContext) => {
-            if (retryContext.previousRetryCount < this.maxReconnectAttempts) {
-              return Math.min(1000 * Math.pow(2, retryContext.previousRetryCount), 30000);
-            }
-            return null; // Stop reconnecting
-          },
+          nextRetryDelayInMilliseconds: _ => 1000,
         })
         .configureLogging(signalR.LogLevel.Information)
         .build();

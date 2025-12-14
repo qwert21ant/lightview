@@ -37,7 +37,7 @@ import { RouterView, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { CameraManager } from '@/services/cameraManager'
 import { CAMERA_MANAGER_KEY } from '@/composables/useCamera'
-import { SettingsHubService } from '@/services/settingsHubService'
+import { SettingsManager } from '@/services/settingsManager'
 import { SETTINGS_HUB_KEY } from '@/composables/useSettings'
 import { NotificationService } from '@/services/notificationService'
 import { NOTIFICATION_SERVICE_KEY } from '@/composables/useNotifications'
@@ -55,7 +55,7 @@ window.__cameraManager = cameraManager // For debugging
 provide(CAMERA_MANAGER_KEY, cameraManager)
 
 // Create and provide SettingsHubService instance
-const settingsHubService = new SettingsHubService()
+const settingsHubService = new SettingsManager()
 // @ts-ignore
 window.__settingsHubService = settingsHubService // For debugging
 provide(SETTINGS_HUB_KEY, settingsHubService)

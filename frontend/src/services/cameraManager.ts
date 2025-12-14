@@ -10,8 +10,7 @@ import type {
   CameraEventHandlers,
   CameraChangedNotification,
   CameraStatusChangedData,
-  CameraMetadataUpdatedData,
-  CameraEventType
+  CameraMetadataUpdatedData
 } from '@/types/camera';
 import { 
   CameraStatus,
