@@ -106,25 +106,20 @@ public class CamerasController : ControllerBase
             
             var monitoring = await _cameraService.AddCameraAsync(camera);
 
-            var response = new Camera
+            var response = new CameraStatusResponse
             {
                 Id = monitoring.Camera.Id,
                 Name = monitoring.Camera.Configuration.Name,
                 Url = monitoring.Camera.Configuration.Url,
-                Username = monitoring.Camera.Configuration.Username,
-                Password = monitoring.Camera.Configuration.Password,
-                Protocol = monitoring.Camera.Configuration.Protocol,
                 Status = monitoring.Camera.Status,
-                CreatedAt = monitoring.Camera.Configuration.CreatedAt,
                 LastConnectedAt = monitoring.Camera.Configuration.LastConnectedAt,
                 DeviceInfo = monitoring.Camera.Configuration.DeviceInfo,
-                Capabilities = monitoring.Camera.Capabilities,
-                Profiles = monitoring.Camera.Profiles.ToList()
+                Capabilities = monitoring.Camera.Capabilities
             };
 
             return CreatedAtAction(nameof(GetCamera), 
                 new { id = id }, 
-                new ApiResponse<Camera>
+                new ApiResponse<CameraStatusResponse>
                 {
                     Success = true,
                     Data = response
@@ -138,6 +133,67 @@ public class CamerasController : ControllerBase
                 Success = false,
                 ErrorMessage = ex.Message,
                 ErrorCode = "CAMERA_CREATION_FAILED"
+            });
+        }
+    }
+
+    [HttpPut("{id}")]
+    public async Task<ActionResult<ApiResponse<Camera>>> UpdateCamera(Guid id, [FromBody] UpdateCameraRequest request)
+    {
+        _logger.LogInformation("Updating camera {CameraId} with name {CameraName}", id, request.Name);
+        try
+        {
+            var existingMonitoring = _cameraService.GetCamera(id);
+            if (existingMonitoring == null)
+            {
+                return NotFound(new ApiResponse
+                {
+                    Success = false,
+                    ErrorMessage = "Camera not found",
+                    ErrorCode = "CAMERA_NOT_FOUND"
+                });
+            }
+
+            var updatedCamera = new Camera
+            {
+                Id = id,
+                Name = request.Name ?? existingMonitoring.Camera.Configuration.Name,
+                Url = request.Url ?? existingMonitoring.Camera.Configuration.Url,
+                Username = request.Username ?? existingMonitoring.Camera.Configuration.Username,
+                Password = request.Password ?? existingMonitoring.Camera.Configuration.Password,
+                Protocol = request.Protocol ?? existingMonitoring.Camera.Configuration.Protocol,
+                Status = existingMonitoring.Camera.Status,
+                CreatedAt = existingMonitoring.Camera.Configuration.CreatedAt,
+                LastConnectedAt = existingMonitoring.Camera.Configuration.LastConnectedAt
+            };
+            
+            var monitoring = await _cameraService.UpdateCameraAsync(id, updatedCamera);
+
+            var response = new CameraStatusResponse
+            {
+                Id = monitoring.Camera.Id,
+                Name = monitoring.Camera.Configuration.Name,
+                Url = monitoring.Camera.Configuration.Url,
+                Status = monitoring.Camera.Status,
+                LastConnectedAt = monitoring.Camera.Configuration.LastConnectedAt,
+                DeviceInfo = monitoring.Camera.Configuration.DeviceInfo,
+                Capabilities = monitoring.Camera.Capabilities
+            };
+
+            return Ok(new ApiResponse<CameraStatusResponse>
+            {
+                Success = true,
+                Data = response
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update camera {CameraId}", id);
+            return BadRequest(new ApiResponse
+            {
+                Success = false,
+                ErrorMessage = ex.Message,
+                ErrorCode = "CAMERA_UPDATE_FAILED"
             });
         }
     }

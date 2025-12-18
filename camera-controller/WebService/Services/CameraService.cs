@@ -53,48 +53,53 @@ public class CameraService : ICameraService, IDisposable
         await _operationSemaphore.WaitAsync();
         try
         {
-            if (_managedCameras.ContainsKey(cameraConfig.Id))
-            {
-                throw new InvalidOperationException($"Camera with ID {cameraConfig.Id} already exists");
-            }
-
-            _logger.LogInformation("Adding camera {CameraName} ({CameraId}) at {Url}", 
-                cameraConfig.Name, cameraConfig.Id, cameraConfig.Url);
-
-            // Create camera instance (this would be injected in real implementation)
-            var camera = CreateCameraInstance(cameraConfig);
-            
-            // Create monitoring wrapper with configuration
-            var monitoring = CreateMonitoringInstance(camera);
-            
-            // Subscribe to camera events
-            SubscribeToCameraEvents(camera);
-
-            // Add to managed cameras
-            _managedCameras[cameraConfig.Id] = monitoring;
-
-            // Set initial status to Offline - camera is not connected yet
-            camera.UpdateStatus(CameraStatus.Offline, "Camera added to management - not connected yet");
-
-            // Publish camera added event
-            await _eventPublisher.PublishCameraEventAsync(new CameraStatusChangedEvent
-            {
-                CameraId = cameraConfig.Id,
-                PreviousStatus = CameraStatus.Offline,
-                CurrentStatus = CameraStatus.Offline,
-                Reason = "Camera added to management - ready for connection"
-            });
-
-            // Do not configure MediaMTX streams yet - they will be configured when camera connects
-            // Do not start monitoring automatically - it will start when camera connects
-
-            _logger.LogInformation("Successfully added and started monitoring camera {CameraId}", cameraConfig.Id);
-            return monitoring;
+            return await AddCameraInternalAsync(cameraConfig);
         }
         finally
         {
             _operationSemaphore.Release();
         }
+    }
+
+    private async Task<ICameraMonitoring> AddCameraInternalAsync(Camera cameraConfig)
+    {
+        if (_managedCameras.ContainsKey(cameraConfig.Id))
+        {
+            throw new InvalidOperationException($"Camera with ID {cameraConfig.Id} already exists");
+        }
+
+        _logger.LogInformation("Adding camera {CameraName} ({CameraId}) at {Url}", 
+            cameraConfig.Name, cameraConfig.Id, cameraConfig.Url);
+
+        // Create camera instance (this would be injected in real implementation)
+        var camera = CreateCameraInstance(cameraConfig);
+        
+        // Create monitoring wrapper with configuration
+        var monitoring = CreateMonitoringInstance(camera);
+        
+        // Subscribe to camera events
+        SubscribeToCameraEvents(camera);
+
+        // Add to managed cameras
+        _managedCameras[cameraConfig.Id] = monitoring;
+
+        // Set initial status to Offline - camera is not connected yet
+        camera.UpdateStatus(CameraStatus.Offline, "Camera added to management - not connected yet");
+
+        // Publish camera added event
+        await _eventPublisher.PublishCameraEventAsync(new CameraStatusChangedEvent
+        {
+            CameraId = cameraConfig.Id,
+            PreviousStatus = CameraStatus.Offline,
+            CurrentStatus = CameraStatus.Offline,
+            Reason = "Camera added to management - ready for connection"
+        });
+
+        // Do not configure MediaMTX streams yet - they will be configured when camera connects
+        // Do not start monitoring automatically - it will start when camera connects
+
+        _logger.LogInformation("Successfully added and started monitoring camera {CameraId}", cameraConfig.Id);
+        return monitoring;
     }
 
     public async Task<bool> RemoveCameraAsync(Guid cameraId)
@@ -126,7 +131,7 @@ public class CameraService : ICameraService, IDisposable
         }
     }
 
-    public async Task<bool> UpdateCameraAsync(Guid cameraId, Camera updatedConfig)
+    public async Task<ICameraMonitoring> UpdateCameraAsync(Guid cameraId, Camera updatedConfig)
     {
         await _operationSemaphore.WaitAsync();
         try
@@ -134,7 +139,7 @@ public class CameraService : ICameraService, IDisposable
             if (!_managedCameras.TryGetValue(cameraId, out var monitoring))
             {
                 _logger.LogWarning("Attempted to update non-existent camera {CameraId}", cameraId);
-                return false;
+                throw new KeyNotFoundException($"Camera with ID {cameraId} not found");
             }
 
             _logger.LogInformation("Updating configuration for camera {CameraId}", cameraId);
@@ -147,16 +152,16 @@ public class CameraService : ICameraService, IDisposable
             monitoring.Dispose();
             _managedCameras.TryRemove(cameraId, out _);
 
-            // Add with updated configuration
-            await AddCameraAsync(updatedConfig);
+            // Add with updated configuration using internal method to avoid deadlock
+            var newMonitoring = await AddCameraInternalAsync(updatedConfig);
 
             _logger.LogInformation("Successfully updated camera {CameraId}", cameraId);
-            return true;
+            return newMonitoring;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to update camera {CameraId}", cameraId);
-            return false;
+            throw;
         }
         finally
         {

@@ -7,6 +7,7 @@ apiAddress: :9997
 rtsp: yes
 rtspAddress: :8554
 rtspEncryption: "no"
+rtspTransports: [tcp]
 
 webrtc: yes
 webrtcAddress: :8889

@@ -429,7 +429,7 @@ public class RtspCameraDevice : ICamera
             var processInfo = new ProcessStartInfo
             {
                 FileName = "ffprobe",
-                Arguments = $"-v quiet -print_format json -show_streams -analyzeduration 1000000 -probesize 1000000 \"{rtspUrl}\"",
+                Arguments = $"-rtsp_transport tcp -v quiet -print_format json -show_streams -analyzeduration 1000000 -probesize 1000000 \"{rtspUrl}\"",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,

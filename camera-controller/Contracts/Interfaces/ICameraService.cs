@@ -32,7 +32,7 @@ public interface ICameraService
     /// <summary>
     /// Update camera configuration
     /// </summary>
-    Task<bool> UpdateCameraAsync(Guid cameraId, Camera updatedConfig);
+    Task<ICameraMonitoring> UpdateCameraAsync(Guid cameraId, Camera updatedConfig);
     
     /// <summary>
     /// Get camera health status

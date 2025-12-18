@@ -189,6 +189,6 @@ public class FfmpegSnapshotService
         // -q:v 2: high quality (scale 1-31, lower is better)
         // -f image2: force format to image
         // -update 1: update the same file (useful for single frame)
-        return $"-y -i \"{rtspUrl}\" -vframes 1 -q:v 2 -f image2 -update 1 \"{outputPath}\"";
+        return $"-rtsp_transport tcp -y -i \"{rtspUrl}\" -vframes 1 -q:v 2 -f image2 -update 1 \"{outputPath}\"";
     }
 }
