@@ -1,5 +1,6 @@
 services:
   core:
+    image: qwert21ant/lightview-core:latest
     build:
       context: .
       dockerfile: core/Dockerfile
@@ -27,6 +28,7 @@ services:
     restart: unless-stopped
 
   camera-controller:
+    image: qwert21ant/lightview-camera-controller:latest
     build:
       context: .
       dockerfile: camera-controller/Dockerfile
@@ -61,6 +63,7 @@ services:
       start_period: 40s
 
   frontend:
+    image: qwert21ant/lightview-frontend:latest
     build:
       context: frontend
       dockerfile: Dockerfile
